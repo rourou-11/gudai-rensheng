@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>古代人生模拟</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;
+    background:#efe8d8; color:#2b2620;
+    display:flex; justify-content:center;
+  }
+  #app { width:100%; max-width:480px; height:100%; display:flex; flex-direction:column; background:#f7f2e6; box-shadow:0 0 24px rgba(0,0,0,.15); }
+  /* ---------- 顶部状态栏 ---------- */
+  #status {
+    position:sticky; top:0; z-index:10;
+    background:#3a3226; color:#e8dfc8;
+    padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top));
+    border-bottom:3px solid #8b3a3a;
+  }
+  #status .row1 { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  #status .age { font-size:18px; font-weight:bold; letter-spacing:1px; }
+  #status .money { font-size:14px; color:#e8c96a; }
+  #status .identity { font-size:12px; opacity:.8; margin-top:2px; }
+  #btnPanel { background:none; border:1px solid #b09a5a; color:#e8dfc8; border-radius:6px; font-size:13px; padding:4px 10px; font-family:inherit; letter-spacing:2px; cursor:pointer; }
+  #btnPanel:active { background:#5a4a2f; }
+  .attrs { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:8px; }
+  .attr { text-align:center; font-size:12px; }
+  .attr .bar { height:5px; background:rgba(255,255,255,.18); border-radius:3px; margin-top:3px; overflow:hidden; }
+  .attr .bar i { display:block; height:100%; border-radius:3px; transition:width .4s; }
+  /* ---------- 剧情区 ---------- */
+  #log { flex:1; overflow-y:auto; padding:16px 16px 8px; -webkit-overflow-scrolling:touch; }
+  .entry { margin-bottom:16px; animation:fade .4s; }
+  @keyframes fade { from{opacity:0; transform:translateY(6px);} to{opacity:1;} }
+  .year-tag { display:inline-block; font-size:12px; color:#f7f2e6; background:#8b3a3a; padding:2px 10px; border-radius:3px; margin-bottom:6px; letter-spacing:2px; }
+  .entry p { font-size:17px; line-height:1.9; margin-bottom:6px; }
+  .entry .outcome { color:#5a4a2f; background:#ece3c8; border-left:3px solid #b09a5a; padding:8px 10px; border-radius:0 6px 6px 0; font-size:15px; }
+  .entry .syslog { font-size:13px; color:#8a7a5a; }
+  /* ---------- 选项/行动区 ---------- */
+  #choices { padding:10px 16px calc(14px + env(safe-area-inset-bottom)); background:#f7f2e6; }
+  #choices .sec-title { font-size:13px; color:#8a7a5a; letter-spacing:3px; text-align:center; margin-bottom:8px; }
+  .btn {
+    display:block; width:100%; margin-bottom:10px;
+    padding:12px 16px; font-size:16px; font-family:inherit;
+    color:#2b2620; background:#fffdf5;
+    border:1.5px solid #b09a5a; border-radius:8px;
+    text-align:left; line-height:1.5; cursor:pointer;
+    transition:transform .08s, background .2s;
+  }
+  .btn:active { transform:scale(.98); background:#ece3c8; }
+  .btn.primary { background:#8b3a3a; border-color:#8b3a3a; color:#f7f2e6; text-align:center; letter-spacing:4px; }
+  .btn.primary:active { background:#722e2e; }
+  .btn .sub-note { display:block; font-size:12px; color:#9a8a6a; margin-top:2px; }
+  .btn.ff { text-align:center; color:#6a5a3a; border-style:dashed; }
+  /* ---------- 人物面板 ---------- */
+  #panel { position:fixed; inset:0; z-index:50; background:rgba(20,16,8,.55); display:none; }
+  #panel.show { display:block; }
+  .panel-inner {
+    position:absolute; left:50%; transform:translateX(-50%);
+    top:0; bottom:0; width:100%; max-width:480px;
+    background:#f7f2e6; overflow-y:auto;
+    padding:calc(14px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+  }
+  .panel-inner h2 { color:#8b3a3a; letter-spacing:4px; font-size:22px; margin-bottom:4px; }
+  .panel-inner .p-sub { font-size:13px; color:#7a6a4a; margin-bottom:14px; }
+  .p-sec { background:#fffdf5; border:1.5px solid #b09a5a; border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  .p-sec h3 { color:#8b3a3a; font-size:15px; margin-bottom:8px; letter-spacing:2px; }
+  .p-row { display:flex; justify-content:space-between; gap:12px; font-size:14px; padding:4px 0; border-bottom:1px dashed #e0d5b8; line-height:1.6; }
+  .p-row:last-child { border-bottom:none; }
+  .p-row .v { color:#6a5a3a; text-align:right; }
+  .p-bar { height:5px; background:#e8dfc8; border-radius:3px; overflow:hidden; margin-top:3px; }
+  .p-bar i { display:block; height:100%; }
+  .goal { font-size:14px; padding:3px 0; }
+  .goal.done { color:#3a8b5a; }
+  .goal.miss { color:#a09880; }
+  .p-close { margin-top:4px; }
+  /* ---------- 标题/结局页 ---------- */
+  .screen { flex:1; display:flex; flex-direction:column; justify-content:center; padding:32px 24px; text-align:center; }
+  .screen h1 { font-size:40px; letter-spacing:10px; color:#8b3a3a; margin-bottom:8px; }
+  .screen .sub { color:#7a6a4a; margin-bottom:32px; letter-spacing:2px; }
+  .fam-card { background:#fffdf5; border:1.5px solid #b09a5a; border-radius:10px; padding:16px; margin-bottom:12px; text-align:left; cursor:pointer; }
+  .fam-card:active { background:#ece3c8; }
+  .fam-card h3 { color:#8b3a3a; margin-bottom:6px; }
+  .fam-card p { font-size:14px; line-height:1.7; color:#4a4232; }
+  .ending-title { font-size:32px; color:#8b3a3a; letter-spacing:6px; margin-bottom:16px; }
+  .ending-body { font-size:16px; line-height:2; text-align:left; background:#fffdf5; border:1.5px solid #b09a5a; border-radius:10px; padding:16px; margin-bottom:24px; }
+  .hint { font-size:12px; color:#9a8a6a; margin-top:8px; }
+  /* ---------- 新主循环：目标条 / 主视图 / 页签栏 / 待办帖 ---------- */
+  #status .goal-row { display:flex; justify-content:space-between; gap:10px; font-size:12px; color:#e8c96a; margin-top:8px; }
+  #status .goal-row .ap { color:#e8dfc8; }
+  #main { flex:1; overflow-y:auto; padding:14px 14px 10px; -webkit-overflow-scrolling:touch; }
+  #tabbar {
+    display:flex; gap:5px;
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+    background:#3a3226; border-top:3px solid #8b3a3a;
+  }
+  #tabbar .tab { flex:1; padding:9px 0; font-size:13px; font-family:inherit; background:none; border:1px solid #b09a5a; color:#e8dfc8; border-radius:6px; letter-spacing:1px; cursor:pointer; }
+  #tabbar .tab.on { background:#b09a5a; color:#3a3226; font-weight:bold; }
+  #tabbar .tab:disabled { opacity:.4; cursor:not-allowed; }
+  #btnNext { flex:1.5; padding:9px 0; font-size:15px; font-family:inherit; letter-spacing:3px; background:#8b3a3a; color:#f7f2e6; border:1px solid #8b3a3a; border-radius:6px; cursor:pointer; }
+  #btnNext:active { background:#722e2e; }
+  #btnNext:disabled { opacity:.45; cursor:not-allowed; letter-spacing:0; font-size:12px; }
+  .post { background:#fffdf5; border:1.5px solid #b09a5a; border-radius:10px; padding:14px; margin-bottom:12px; animation:fade .4s; }
+  .post-tag { display:inline-block; font-size:12px; color:#f7f2e6; background:#8b3a3a; padding:2px 10px; border-radius:3px; margin-bottom:8px; letter-spacing:2px; }
+  .post p { font-size:16px; line-height:1.9; margin-bottom:10px; }
+  .post .outcome { color:#5a4a2f; background:#ece3c8; border-left:3px solid #b09a5a; padding:8px 10px; border-radius:0 6px 6px 0; font-size:15px; margin-bottom:10px; line-height:1.8; }
+  .post-queue { text-align:center; font-size:12px; color:#8a7a5a; margin-bottom:10px; }
+  .sec { background:#fffdf5; border:1.5px solid #b09a5a; border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  .sec-title2 { color:#8b3a3a; font-size:15px; margin-bottom:8px; letter-spacing:2px; }
+  .sec .btn { margin-bottom:8px; padding:10px 14px; font-size:15px; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .ap-hint { text-align:center; font-size:12px; color:#8a7a5a; margin-bottom:8px; }
+  .hist-item { font-size:14px; line-height:1.8; padding:6px 0; border-bottom:1px dashed #e0d5b8; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="panel"><div class="panel-inner" id="panelBody"></div></div>
+<script>
+"use strict";
+/* ================= 工具 ================= */
+const $app = document.getElementById("app");
+const rnd = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const pick = arr=>arr[rnd(0,arr.length-1)];
+const chance = p=>Math.random()<p;
+const MONTHS = ["正月","二月","三月","四月","五月","六月","七月","八月","九月","十月","冬月","腊月"];
+
+const ATTR_NAMES = { health:"健康", knowledge:"学识", fame:"名声", mood:"心情" };
+const ATTR_COLORS = { health:"#c0392b", knowledge:"#2e6da4", fame:"#6a4a8b", mood:"#3a8b5a" };
+const SAVE_KEY = "ancient_life_save_v5";
+
+let S = null;
+
+function clampAttrs(){
+  for(const k in S.attrs) S.attrs[k] = Math.max(0, Math.min(100, S.attrs[k]));
+  if(S.xinji!==undefined) S.xinji = Math.max(0, Math.min(100, S.xinji));
+}
+function save(){
+  if(!S) return;
+  const posts = S.posts;   // 帖子含函数，不入存档；刷新后按月初状态重新生成
+  S.posts = undefined;
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){}
+  S.posts = posts;
+}
+function loadSave(){ try{ const s = localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+/* ---------- 姓名 ---------- */
+const SURNAMES = ["李","王","张","刘","陈","杨","赵","周","吴","徐","孙","林","沈","顾","苏"];
+const NAMES_M = ["慕白","子谦","守拙","砚秋","青山","松柏","云飞","明远","承业","景行","怀瑾","望舒"];
+const NAMES_F = ["婉清","淑仪","明玉","若兰","采薇","静姝","令仪","芳华","疏影","知夏","映雪","清商"];
+function genName(gender, surname){
+  return (surname || pick(SURNAMES)) + pick(gender==="女" ? NAMES_F : NAMES_M);
+}
+
+/* ---------- 出身 ---------- */
+const FAMILIES = [
+  { name:"官宦之家", desc:"父亲是县衙主簿，家境殷实，门第体面，嫡庶有别。", silver:150, attrs:{fame:8} },
+  { name:"书香门第", desc:"祖父是老秀才，家中藏书满架，唯独缺些银钱。", silver:60, attrs:{knowledge:12} },
+  { name:"富商之家", desc:"家中开着两间绸缎铺，从小吃穿不愁。", silver:350, attrs:{} },
+  { name:"普通农家", desc:"几亩薄田，一头老牛，日子清苦但安稳。", silver:20, attrs:{health:8}, assets:[{name:"祖传薄田二亩", yearly:5, value:20}] },
+  { name:"贫苦人家", desc:"家徒四壁，你从小就懂得挨饿的滋味，也练就了一副硬身板。", silver:5, attrs:{health:5, mood:-5} },
+];
+
+/* ---------- 资产 ---------- */
+function totalWealth(){
+  return Math.round(S.silver + S.assets.reduce((t,a)=>t+a.value, 0));
+}
+function addAsset(a){ S.assets.push(a); }
+function householdSize(){
+  let n = 1 + (S.spouse?1:0);
+  S.children.forEach(c=>{ if(c.ageY < 16) n++; });
+  return n;
+}
+/*__TAIL__*/
+
+const MILESTONES = [
+  { id:"dishu", age:11, month:6, cond:s=>s.birth==="庶", text:s=>`你十一岁了，渐渐懂了「嫡庶有别」四个字的分量。嫡母待你淡淡的，好东西总是先紧着嫡出的兄弟姐妹。`,
+    options:[
+      { text:"去祖母跟前承欢讨巧", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+20); s.attrs.mood+=5; return "祖母最疼你，常把你叫到屋里塞点心，还叮嘱下人不许怠慢你。有祖母护着，你的日子好过多了。（庇护+20，心情+5）"; } },
+      { text:"谨小慎微，学着看人脸色", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+5); s.attrs.knowledge+=2; return "你把委屈咽进肚子里，见人说人话，见事躲三分。庶出的孩子，从小就要学会看人脸色——这身本事，是熬出来的。（庇护+5，学识+2）"; } },
+    ]},
+  { id:"kaozi", age:10, month:3, text:s=>`你十岁了。父亲下值回来，把你叫到跟前，指着墙上的条幅要考你认字。满屋的人都看着。`,
+    options:[
+      { text:"上前认字", effect:s=>{
+          if(s.attrs.knowledge>=8){ s.silver+=2; s.favor=Math.min(100,(s.favor||50)+10); s.attrs.fame+=2; return "你一字一句，念得清清脆脆，竟一个字也不错。父亲大喜，当场赏了你一锭银子：「这孩子，是个读书的料！」（银两+2，庇护+10，名声+2）"; }
+          s.attrs.mood-=3; return "你认出了大半，却卡在了最难的几个字上。父亲捋着胡子没说什么，只吩咐先生：「往后功课加倍。」你垂着头应了。（心情-3，父亲让你加倍用功）";
+        } },
+    ]},
+  { id:"beishu", age:11, month:4, text:s=>`你十一岁了。先生抽查《千字文》，偏你昨夜贪玩没背熟。先生的戒尺敲着桌案：「背。」`,
+    options:[
+      { text:"老实认错", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+5); return "你站起来，老老实实认：「先生，是我贪玩没背熟，甘愿领罚。」先生盯了你半晌，戒尺终究没落下来：「知错能改，善莫大焉。」这事传到父亲耳里，他夸你磊落。（庇护+5）"; } },
+      { text:"撒谎耍滑", effect:s=>{
+          s.xinji=(s.xinji||15)+10;
+          if(chance(0.5)){ s.favor=Math.max(0,(s.favor||50)-10); s.attrs.mood-=5; return "你眼珠子一转，说昨夜病了没来得及背。谁知先生早问过你娘——当场戳穿，罚你跪在廊下抄书十遍。偷鸡不成蚀把米。（心机+10，庇护-10，心情-5）"; }
+          return "你挤出两滴眼泪，说昨夜着了凉，背书背到半夜还是没记牢。先生信了几分，摆手让你坐下。你低头掩住眼里的一点得意——原来话是可以这样说的。（心机+10，蒙混过关）";
+        } },
+      { text:"拉兄长顶包", cond:s=>(s.siblings||[]).some(b=>b.gender==="男"), effect:s=>{
+          const bro=(s.siblings||[]).find(b=>b.gender==="男");
+          bro.closeness=Math.max(0,bro.closeness-8); s.xinji=(s.xinji||15)+5;
+          return `你捅了捅身边的${bro.name}，挤眉弄眼求他替你答。${bro.name}犹豫了一下，还是站起来替你背了——回头就被先生看出破绽，罚的是他。他一整天没理你。（${bro.name}亲近-8，心机+5，自己脱身）`;
+        } },
+    ]},
+  { id:"zhongqiu", age:12, month:8, text:s=>`中秋家宴，瓜果满桌。酒过三巡，父亲兴致来了，要让家中的小辈们各献一艺助兴。轮到你时，满座都看了过来。`,
+    options:[
+      { text:"上场便是", effect:s=>{
+          if(s.attrs.knowledge>=25){ s.attrs.fame+=5; s.favor=Math.min(100,(s.favor||50)+10); s.silver+=5; return "你起身吟了一首即景小诗，「桂子月中落，天香云外飘」。满座叫好，父亲抚掌大笑，当场赏了你五两银子。族中长辈都说：此子将来不可限量。（名声+5，庇护+10，银两+5）"; }
+          if(s.attrs.health>=60){ s.attrs.fame+=4; s.attrs.mood+=5; return "你抄起一柄木剑舞了一套，剑风飒飒，虎虎生威。叔公看得连声喝彩：「好俊的身手！」（名声+4，心情+5）"; }
+          s.attrs.mood+=2; return "你没什么拿得出手的，只规规矩矩给长辈们敬了酒，便坐回角落默默吃月饼。月饼很甜，月亮很圆，这样也好。（心情+2）";
+        } },
+    ]},
+  { id:"fenguozi", age:13, month:9, text:s=>{
+      return `重阳过后，祖母把孩子们叫到屋里，炕桌上摆着一盘新下来的果子，有大有小。祖母笑眯眯地说：「自己拿。」几个孩子的手都顿在了半空。`;
+    },
+    options:[
+      { text:"拿最大的", effect:s=>{ s.attrs.mood+=2; s.favor=Math.max(0,(s.favor||50)-5); return "你伸手就拿了个最大的，咬了一口，真甜。祖母看了你一眼，了然一笑，什么也没说。只是后来分好东西时，总轮不到你先挑。（心情+2，庇护-5）"; } },
+      { text:"拿最小的", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+15); return "你捡了个最小的，安安静静剥开吃。祖母微微颔首，转头对身边的嬷嬷说：「这孩子心里有数。」当晚，她屋里的一碟酥酪悄悄送到了你桌上。（庇护+15）"; } },
+      { text:"让给兄长", cond:s=>(s.siblings||[]).some(b=>b.gender==="男"), effect:s=>{
+          const bro=(s.siblings||[]).find(b=>b.gender==="男");
+          bro.closeness=Math.min(100,bro.closeness+10); s.favor=Math.min(100,(s.favor||50)+10);
+          return `你把大的让给了${bro.name}。${bro.name}愣了愣，后来悄悄分了半个给你。祖母看在眼里，逢人便夸你友爱兄弟。（${bro.name}亲近+10，庇护+10）`;
+        } },
+      { text:"先观察嫡母眼色再拿", cond:s=>s.xinji>=30, effect:s=>{ s.favor=Math.min(100,(s.favor||50)+10); s.xinji=(s.xinji||15)+3; return "你没急着伸手，先抬眼看了看嫡母的脸色，等她微微点了头，才拿了个不大不小的。嫡母眼里掠过一丝满意：这孩子，懂规矩，知进退。（庇护+10，心机+3）"; } },
+    ]},
+  { id:"jianke", age:11, month:6, cond:s=>s.birth==="嫡", text:s=>{
+      if(s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家") return `你十一岁了。家中有客来访，父亲特意唤你出去见礼——这是嫡出的孩子才有的体面。`;
+      return `你十一岁了。里正来家里商量族中的事，父亲唤你出去端茶见客——让你早早学些人情往来。`;
+    },
+    options:[
+      { text:"大方上前见礼", effect:s=>{ s.attrs.fame+=3; s.favor=Math.min(100,(s.favor||50)+5); return "你上前行礼，问安、奉茶、回话，一板一眼，落落大方。客人赞道：「令郎（令爱）小小年纪，已有大家风范。」父亲脸上极有光彩。你在旁边听他们谈田产、谈行情、谈人情往来，长了不少见识。（名声+3，庇护+5）"; } },
+      { text:"躲在帘后偷听", effect:s=>{ s.xinji=(s.xinji||15)+4; s.attrs.knowledge+=1; return "你有些怯场，躲在帘后听他们说话。大人席间的每一句话都有弯绕，你听得似懂非懂，却隐约摸到了一点门道。（心机+4，学识+1）"; } },
+    ]},
+  { id:"zuxue", age:14, month:7, cond:s=>s.gender==="男", text:s=>`你十四岁了。族学里每年一次的比试到了，族中各房的子弟都要下场，写的文章要呈给族老们亲眼看。（学识 ${Math.round(s.attrs.knowledge)}）`,
+    options:[
+      { text:"提笔应试", effect:s=>{
+          if(s.attrs.knowledge>=35){ s.silver+=10; s.attrs.fame+=5; return "你的文章被族老们传看了一遍又一遍，评为头名。族长当众宣布：你的束脩由族中公产全包！另赏十两银子。族中长辈看你的眼神都不一样了——这是把你当读书种子栽培。（银两+10，名声+5，束脩全免）"; }
+          s.attrs.knowledge+=2; return "你的文章中规中矩，没得头名。族老批语：「尚有可造，尚需用功。」先生安慰你：路还长，字是一个一个写出来的。（学识+2）";
+        } },
+    ]},
+  { id:"qingmei", age:11, month:7, text:s=>`你十一岁了。${s.family==="普通农家"||s.family==="贫苦人家"?"隔壁邻家有个与你同岁的"+(s.gender==="男"?"小丫头":"男孩子"):"常来府上走动的表亲家，有个与你同岁的"+(s.gender==="男"?"表妹":"表哥")}，眉眼干净，见了你总是抿着嘴笑。`,
+    options:[
+      { text:"一起上树掏鸟窝", effect:s=>{
+          const opp = s.gender==="男"?"女":"男";
+          const f = { name:genName(opp), gender:opp, rel:70, persona:pick(FRIEND_PERSONAS), qingmei:true };
+          s.friends.push(f); s.attrs.health-=1; s.attrs.mood+=6;
+          return `你们爬上大槐树掏鸟窝，TA 在树下给你望风。下来时你蹭破了皮，TA 撕了块衣角给你包上，两个人笑作一团。从那天起，你们形影不离。（结识青梅竹马 ${f.name}，情谊深厚，健康-1，心情+6）`;
+        } },
+      { text:"一起读书描红", effect:s=>{
+          const opp = s.gender==="男"?"女":"男";
+          const f = { name:genName(opp), gender:opp, rel:50, persona:pick(FRIEND_PERSONAS), qingmei:true };
+          s.friends.push(f); s.attrs.knowledge+=2;
+          return `你们同坐一张小案，你写一笔，TA 描一笔。TA 的字不如你，缠着你教。一来二去，你们成了最要好的伙伴。（结识青梅竹马 ${f.name}，学识+2）`;
+        } },
+      { text:"点头之交", effect:s=>{
+          const opp = s.gender==="男"?"女":"男";
+          const f = { name:genName(opp), gender:opp, rel:30, persona:pick(FRIEND_PERSONAS), qingmei:true };
+          s.friends.push(f);
+          return `你规规矩矩打了个招呼，没敢多说话。TA 的身影偶尔出现在巷口、桥边，你们见了面，也只是点点头。（结识了 ${f.name}，点头之交）`;
+        } },
+    ]},
+  { id:"lizhi", age:13, month:9, cond:s=>s.gender==="男", text:s=>`你十三岁了，是半大小子了。父母把你叫到跟前，郑重地问：孩子，你想走哪条路？`,
+    options:[
+      { text:"读书——十年寒窗，搏一个功名", effect:s=>{ s.path="ke"; s.attrs.knowledge+=6; s.silver-=5;
+          if(s.family==="普通农家"||s.family==="贫苦人家"){ return "寒门子弟读书，束脩是全族凑的。父亲拍着你的肩：「咱们家几辈子，就指望你这一支笔了。」你背着书箱入塾那日，娘红了眼眶。（学识+6，银两-5）"; }
+          return "父亲为你交了束脩，你从此入了私塾。先生摸着山羊胡说：「读书苦，可苦尽才有甘来。」（学识+6，银两-5）"; } },
+      { text:"弃文从商——去铺子里当学徒", effect:s=>{ s.path="shang"; return "你进了城里最大的商号当学徒，从扫地、看秤学起。掌柜说：「眼里要有活，心里要有数。」（踏上经商路）"; } },
+      { text:"习武——拜入武馆，练就一身本事", effect:s=>{ s.path="wu"; s.attrs.health+=8; return "你拜入镇上的「振威武馆」，天不亮就起来扎马步。师父的戒尺很疼，但你的筋骨一天比一天结实。（健康+8）"; } },
+      { text:"务农——守着家里的田地过活", effect:s=>{ s.path="tian"; s.attrs.health+=6; s.attrs.mood+=5; return "你跟着父亲下了田。春种秋收，面朝黄土，日子平淡，却也踏实自在。（健康+6，心情+5）"; } },
+    ]},
+  { id:"shufa", age:15, month:3, cond:s=>s.gender==="男", text:s=>`你十五岁了，行了束发之礼。父亲亲手为你束起总角——从今往后，你就是要顶门立户的男子汉了。`,
+    options:[
+      { text:"拜谢父母", effect:s=>{ s.attrs.fame+=2; s.attrs.mood+=4; return "你郑重叩拜高堂。族中长辈都来观礼，赞你仪表堂堂、有礼有节。（名声+2，心情+4）"; } },
+      { text:"从此以大人自居", effect:s=>{ s.attrs.fame+=2; return "你摸了摸束起的发髻，挺直了腰板。往后的路，要自己走了。（名声+2）"; } },
+    ]},
+  /* ---- 科举线 ---- */
+  { id:"tongshi", age:16, month:8, cond:s=>s.path==="ke", text:s=>`你苦读多年，今年八月要去县里参加童试。进考场前，先生只说了四个字：「沉住气，写。」（学识 ${Math.round(s.attrs.knowledge)}，需 40 以上）`,
+    options:[
+      { text:"提笔应试", effect:s=>{
+          if(s.attrs.knowledge>=40){ s.flags.xiucai=true; s.attrs.fame+=15; s.attrs.mood+=10; return "「中了！中了！」你考中秀才，从此见官不跪，乡邻看你的眼神都不一样了。父亲喝得大醉。（名声+15）"; }
+          s.attrs.mood-=12; return "榜上没有你的名字。你把自己关在房里三天，出来时眼睛通红：「我再考。」（心情-12，十九岁可再试）";
+        } },
+      { text:"放弃科举，回家种田", effect:s=>{ s.path="tian"; s.attrs.mood+=3; return "你放下笔，也放下了多年的执念。回到乡里扛起锄头，春种秋收，日出而作——心里反倒踏实了。（转田园路，心情+3）"; } },
+    ]},
+  { id:"tongshi2", age:19, month:8, cond:s=>s.path==="ke"&&!s.flags.xiucai, text:s=>`童试又开考了。上次的失利像根刺扎在心里，这次你攥紧了笔。（学识需 45 以上）`,
+    options:[
+      { text:"再搏一次", effect:s=>{
+          if(s.attrs.knowledge>=45){ s.flags.xiucai=true; s.attrs.fame+=15; s.attrs.mood+=10; return "中了！多年的寒窗终于有了回响，你考中秀才，扬眉吐气。（名声+15）"; }
+          s.attrs.mood-=12; return "又名落孙山。先生在背后叹气：「科举这条路，不是人人都走得通的。」（心情-12）";
+        } },
+      { text:"放弃科举，另谋生路", effect:s=>{ s.path="shang"; s.silver+=5; return "你想通了：条条大路通京城，何必吊死在科举一棵树上。你揣着几两碎银进了城，打算学做生意。（转经商路）"; } },
+    ]},
+  { id:"xiangshi", age:22, month:8, cond:s=>s.flags.xiucai&&!s.flags.juren, text:s=>`三年一次的乡试在省城开考。这是你第一次去省城，贡院的号舍又窄又冷，你住了整整九天。（学识需 58 以上）`,
+    options:[
+      { text:"提笔入场", effect:s=>{
+          if(s.attrs.knowledge>=58){ s.flags.juren=true; s.attrs.fame+=25; s.attrs.mood+=10; return "放榜那日，报喜的官差一路敲锣打鼓到你家门口——你中举了！「举人老爷」四个字，让你家门楣都亮了三分。（名声+25）"; }
+          s.attrs.mood-=12; return "落第了。同去的考生中有人当场痛哭。你默默收拾行李回乡，把不甘咽进了肚子里。（心情-12，二十八岁可再试）";
+        } },
+      { text:"不再应考，回乡教书", effect:s=>{ s.flags.teacher=true; s.silver+=5; s.attrs.mood+=3; return "你回到乡里开了间私塾，教蒙童念书识字。束脩虽薄，但看着满堂童子摇头晃脑，你觉得这比功名更实在。（银两+5，心情+3）"; } },
+    ]},
+  { id:"xiangshi2", age:28, month:8, cond:s=>s.flags.xiucai&&!s.flags.juren, text:s=>`乡试再临。同窗中有人已经放弃，有人已经白头。你抚着书箱，想起这些年的灯油钱。`,
+    options:[
+      { text:"最后再搏一次（学识需 60 以上）", effect:s=>{
+          if(s.attrs.knowledge>=60){ s.flags.juren=true; s.attrs.fame+=25; s.attrs.mood+=10; return "苍天不负！你终于中举，多年的压抑一朝释放，你在贡院门口仰天长笑。（名声+25）"; }
+          s.attrs.mood-=10; return "还是差了半步。你烧掉了八股文稿，决定用别的方式过完这一生。（心情-10）";
+        } },
+      { text:"就此止步，以秀才身份教书度日", effect:s=>{ s.flags.teacher=true; s.attrs.mood+=6; s.silver+=10; return "你在乡里开了间私塾，教孩子们念「人之初」。看着满堂童子摇头晃脑，你忽然觉得这样也很好。（心情+6，银两+10）"; } },
+    ]},
+  { id:"huishi", age:30, month:4, cond:s=>s.flags.juren&&!s.flags.jinshi, text:s=>`你进京赶考，参加会试。天子脚下，会馆里挤满了全国的才俊，人人眼里都有光。（学识需 72 以上）`,
+    options:[
+      { text:"赴会试，搏一个进士出身", effect:s=>{
+          if(s.attrs.knowledge>=72){ s.flags.jinshi=true; s.sub="guan"; s.attrs.fame+=30; s.attrs.mood+=10; s.silver+=50; return "金榜题名！殿试之上，你亲眼见到了天子。琼林宴罢，跨马游街——「春风得意马蹄疾，一日看尽长安花」。朝廷授你知县之职，不日赴任。（名声+30，赏银+50，踏入仕途）"; }
+          s.attrs.mood-=10; return "春闱放榜，名落孙山。京城的春天再美，也暖不了落榜人的心。你乘船南归，从此以举人身份在地方上谋了个教谕的闲职。（心情-10）";
+        } },
+      { text:"不去赴考，安心做举人老爷", effect:s=>{ s.attrs.mood+=4; s.attrs.fame+=2; return "你想通了：举人功名已够在乡里立足。你在家读书写字、会友品茶，地方上有什么纠纷都来请你主持公道，日子过得清闲体面。（心情+4，名声+2）"; } },
+    ]},
+  { id:"guan1", age:36, month:5, cond:s=>s.sub==="guan", text:s=>`你任知县已有数年。治下出了一桩大案：豪强侵占民田，苦主告到你案前。豪强连夜送来一箱白银，足有一百两。`,
+    options:[
+      { text:"秉公断案，把银子原样退回", effect:s=>{ s.attrs.fame+=15; s.attrs.mood+=5; s.flags.zhengji=(s.flags.zhengji||0)+10; return "你当堂判豪强退田还钱，百姓山呼「青天」。消息传到府城，上司对你刮目相看。（名声+15，政绩+10）"; } },
+      { text:"收下银子，两不相帮", effect:s=>{ s.silver+=100; s.attrs.fame-=12; s.flags.tarnished=true; return "你收了银子，判了个「各打五十大板」。苦主在衙门外哭了一夜。你的荷包鼓了，名声却脏了。（银两+100，名声-12）"; } },
+    ]},
+  { id:"guan2", age:45, month:6, cond:s=>s.sub==="guan", text:s=>`吏部考绩，你的任期已满。凭这些年的${s.flags.tarnished?"进项":"政绩"}（政绩 ${s.flags.zhengji||0}），升迁与否，就在此一举。`,
+    options:[
+      { text:"静候佳音", effect:s=>{
+          if((s.flags.zhengji||0)>=20 && s.attrs.fame>=60 && !s.flags.tarnished){ s.flags.gaoguan=true; s.attrs.fame+=15; s.silver+=100; return "邸报传来：你升任知府！从七品县令到四品黄堂，你用了半生。赴任那日，百姓夹道相送。（名声+15，银两+100）"; }
+          if(s.flags.tarnished){ s.silver-=50; s.attrs.mood-=8; return "有人把你收受豪强银子的旧事捅了上去。朝廷念你多年辛劳，不加罪责，只将你平调偏远小县，罚俸一年。你捏着调令，五味杂陈。（银两-50，心情-8）"; }
+          s.attrs.mood+=3; return "考评平平，你原地留任。同僚安慰你：「无过便是功。」你笑笑，继续当你的父母官。";
+        } },
+      { text:"花 30 两打点上司（需 30 两）", cond:s=>s.silver>=30, effect:s=>{
+          s.silver-=30; s.flags.zhengji=(s.flags.zhengji||0)+18;
+          if((s.flags.zhengji||0)>=20 && s.attrs.fame>=60 && !s.flags.tarnished){ s.flags.gaoguan=true; s.attrs.fame+=15; s.silver+=100; return "银子递了上去，吏部的考评果然漂亮。邸报传来：你升任知府！从七品县令到四品黄堂，你用了半生。赴任那日，百姓夹道相送。（银两-30，名声+15，赏银+100）"; }
+          if(s.flags.tarnished){ s.silver-=50; s.attrs.mood-=8; return "有人把你收受豪强银子的旧事捅了上去，打点的银子也打了水漂。朝廷念你多年辛劳，不加罪责，只将你平调偏远小县，罚俸一年。你捏着调令，五味杂陈。（银两-80，心情-8）"; }
+          s.attrs.mood+=3; return "银子花出去了，考评仍是平平，你原地留任。同僚安慰你：「无过便是功。」你摸摸瘪下去的荷包，只能苦笑。（银两-30）";
+        } },
+    ]},
+  /* ---- 经商线 ---- */
+  { id:"chushi", age:16, month:6, cond:s=>s.path==="shang", text:s=>`学徒期满，掌柜把你叫到柜上：「小子，手艺你学得差不多了。是想留在柜上当个伙计，还是自己出去闯？」`,
+    options:[
+      { text:"自己闯！盘一间小铺（需 30 两）", cond:s=>s.silver>=30, effect:s=>{ s.flags.shop=true; s.silver-=30; addAsset({name:"临街小铺", yearly:18, value:80}); s.attrs.mood+=6; return "你东拼西凑盘下一间临街小铺，挂上自己写的招牌。第一天开张，你站在门口，觉得整条街都是你的。（银两-30，得资产「临街小铺」，每年进项 18 两）"; } },
+      { text:"继续当伙计，稳扎稳打", effect:s=>{ s.silver+=10; s.attrs.knowledge+=4; return "你留在商号，从伙计做到账房。掌柜的把看账的本事一点点教给了你。（银两+10，学识+4）"; } },
+    ]},
+  { id:"shangji", age:23, month:4, cond:s=>s.path==="shang", text:s=>`一个行商带来消息：北方大旱，粮价飞涨。若能从南方贩粮北上，利润翻倍——但路途遥远，盗匪横行。这趟买卖，至少要压上 60 两本金。`,
+    options:[
+      { text:"压上 60 两，搏一把", cond:s=>s.silver>=60, effect:s=>{
+          s.silver-=60;
+          if(chance(0.6)){ s.silver+=140; s.attrs.fame+=5; return "你雇了镖师押运，粮车有惊无险抵达北方，粮银翻倍而归！这一票，让你在城里站稳了脚跟。（银两+80）"; }
+          s.attrs.health-=5; return "半路遇上山洪，粮车折了一半。你蹲在路边数着剩下的铜板，明白了什么叫「商道如险道」。（银两-60，健康-5）";
+        } },
+      { text:"风险太大，守好自己的营生", effect:s=>{ s.silver+=5; s.attrs.mood+=2; return "你没去。后来听说去的人有的发了，有的血本无归。你摸摸自己的小账本，觉得安稳也是福。（银两+5）"; } },
+    ]},
+  { id:"kuozhang", age:30, month:6, cond:s=>s.path==="shang"&&s.flags.shop, text:s=>`这些年你的铺子越做越顺。如今有个机会：盘下城里地段最好的铺面，把生意做大——连本带利，要 150 两。`,
+    options:[
+      { text:"盘下来！生意就是撑死胆大的（需 150 两）", cond:s=>s.silver>=150, effect:s=>{
+          s.silver-=150;
+          if(s.silver>=20 || chance(0.7)){ addAsset({name:"城里大商号", yearly:60, value:400}); s.attrs.fame+=10; s.flags.bigshop=true; return "新铺开张那天，鞭炮放了半条街。你的商号成了城里数得上的字号，伙计都雇了十几个。（得资产「城里大商号」，每年进项 60 两）"; }
+          s.attrs.mood-=8; return "铺面是盘下来了，可流水撑不起开销，铺子转手时折了大半。你悟出一个道理：步子大了，容易扯着。（银两-150，心情-8）";
+        } },
+      { text:"小富即安，不折腾", effect:s=>{ s.silver+=10; s.attrs.mood+=5; return "你守着老铺子，熟客越来越多。钱不算多，但每天打烊后的一壶小酒，喝得格外香。（银两+10，心情+5）"; } },
+    ]},
+  /* ---- 武学线 ---- */
+  { id:"chuangdang", age:16, month:3, cond:s=>s.path==="wu", text:s=>`九年苦功，你的拳脚已有火候。师父把你叫去：「雏鹰总要离巢。三条路——去镖局当镖师，去投军吃粮，或者留在武馆帮我教徒弟。」`,
+    options:[
+      { text:"当镖师，走南闯北", effect:s=>{ s.sub="biao"; s.silver+=8; s.attrs.fame+=4; return "你进了「镇远镖局」，第一次走镖就见识了江湖的险恶与壮阔。镖旗一展，「镖师」二字从此就是你的身份。（银两+8）"; } },
+      { text:"投军，博个封妻荫子", effect:s=>{ s.sub="jun"; s.attrs.health+=5; return "你报名入了行伍。军营里的操练比武馆苦十倍，但你咬牙扛了下来，很快被提拔为什长。（健康+5）"; } },
+      { text:"留在武馆教徒弟", effect:s=>{ s.sub="guan_wu"; s.attrs.mood+=8; s.silver+=5; return "你留在武馆，从大师兄做起。看着小徒弟们扎马步龇牙咧嘴的样子，你想起当年的自己。（心情+8）"; } },
+    ]},
+  { id:"biaoshi", age:22, month:9, cond:s=>s.sub==="biao", text:s=>`这趟镖押的是一批贵重药材，途经黑风岭——出了名的盗匪窝。夜里宿营，你听见林子里有动静。`,
+    options:[
+      { text:"叫醒弟兄，严阵以待", effect:s=>{
+          if(s.attrs.health>=45){ s.attrs.fame+=15; s.silver+=40; s.attrs.mood+=5; return "夜袭的山贼被你们杀得大败。镖银分文未失，雇主重重有赏，「镇远镖局」的招牌更响了。（名声+15，银两+40）"; }
+          s.attrs.health-=15; s.silver-=20; return "寡不敌众，镖车被劫了一半，你肩上中了一刀。养伤的三个月里，你天天摩挲着刀疤复盘那一夜。（健康-15，银两-20）";
+        } },
+      { text:"绕道走，不惹事", effect:s=>{ s.silver-=5; s.attrs.mood-=3; return "你多花了五天绕开黑风岭。镖银平安送到，但雇主嫌慢，扣了脚钱。江湖上说你稳，也有人说你怂。（银两-5）"; } },
+    ]},
+  { id:"jungong", age:24, month:10, cond:s=>s.sub==="jun", text:s=>`边关告急，敌军夜袭大营。号角吹响时，你抓起长枪冲出营帐，火光把夜空烧得通红。`,
+    options:[
+      { text:"随我杀！", effect:s=>{
+          if(s.attrs.health>=48){ s.attrs.fame+=20; s.flags.jungong=true; s.attrs.mood+=8; s.silver+=30; return "你率部死守营门，斩敌十余。战后论功行赏，你被擢升为校尉，胸前第一次挂上了军功牌。（名声+20，赏银+30）"; }
+          s.attrs.health-=20; s.attrs.fame+=8; return "那一夜你杀红了眼，身中三创仍死战不退。命保住了，但阴雨天伤口总是隐隐作痛。同袍们敬你是条汉子。（健康-20，名声+8）";
+        } },
+    ]},
+  { id:"wuguan", age:30, month:3, cond:s=>s.sub==="guan_wu", text:s=>`师父年事已高，把武馆正式交到了你手上。开馆第一天，他在太师椅上看着满堂弟子，笑着闭上了眼——走得很安详。`,
+    options:[
+      { text:"把「振威武馆」传承下去", effect:s=>{ s.attrs.fame+=12; s.attrs.mood+=8; s.flags.master=true; addAsset({name:"振威武馆", yearly:24, value:150}); return "你接掌武馆，立馆规第一条：习武先习德。多年后，你教出的弟子遍布州县，人人称你一声「师父」。（名声+12，得资产「振威武馆」）"; } },
+      { text:"把武馆让给师弟，自己云游四方", effect:s=>{ s.sub="youxia"; s.attrs.mood+=8; s.attrs.fame+=3; return "你把武馆郑重托付给师弟，自己一柄剑、一匹马，四海云游。后来听说「振威武馆」在师弟手里也办得红火，你笑了笑，继续赶路。（心情+8，名声+3）"; } },
+    ]},
+  /* ---- 田园线 ---- */
+  { id:"fenjia", age:16, month:2, cond:s=>s.path==="tian", text:s=>`你长大了，父母给你分了家：两亩田，半间老屋，还有一句叮嘱——「地是死的，人是活的，勤快人饿不死。」`,
+    options:[
+      { text:"接过锄头，好好干", effect:s=>{ addAsset({name:"自家田地二亩", yearly:6, value:25}); s.attrs.health+=6; return "你把那两亩田伺候得油光水滑，秋收时谷堆得比人高。村里老人都说：这后生，是把好手。（得资产「自家田地二亩」）"; } },
+      { text:"把田租出去，进城谋生", effect:s=>{ s.path="shang"; s.silver+=5; return "你把分到的田租给了佃户，揣着租金进了城，在商号里谋了个学徒的差事。地是死的，人是活的——你想去城里闯一闯。（转经商路，银两+5）"; } },
+    ]},
+  { id:"tianzai", age:22, month:6, cond:s=>s.path==="tian", text:s=>`入夏以来滴雨未落，田里的禾苗打了卷。村里人聚在龙王庙前，商量着是求雨，还是咬牙去十里外的河沟挑水。`,
+    options:[
+      { text:"挑起担子去挑水，人定胜天", effect:s=>{ s.attrs.health-=6; s.silver+=15; s.attrs.fame+=8; return "你带头挑了四十天水，肩膀磨出血痂，但救回了大半庄稼。秋收时村里就数你家仓满，大伙都说你是「铁肩膀」。（银两+15，名声+8，健康-6）"; } },
+      { text:"跟着大伙求雨", effect:s=>{ s.attrs.mood-=5; s.silver-=5; return "香烧了，头磕了，雨还是没来。这一年收成减半，你喝着稀粥想：求人不如求己。（银两-5，心情-5）"; } },
+    ]},
+  { id:"maidi", age:30, month:10, cond:s=>s.path==="tian", text:s=>`邻村有户人家要迁走，愿低价出让五亩好田，要价 80 两。这可是件大事——你攒下的钱，刚好够，但也掏空家底。`,
+    options:[
+      { text:"买！地是根本（需 80 两）", cond:s=>s.silver>=80, effect:s=>{ s.silver-=80; addAsset({name:"邻村良田五亩", yearly:15, value:90}); s.flags.dizhu=true; s.attrs.mood+=8; return "地契按上手印的那一刻，你成了有七亩田的殷实人家。往后几年风调雨顺，谷仓年年满。（得资产「邻村良田五亩」）"; } },
+      { text:"钱留着防身，田够种就行", effect:s=>{ s.attrs.mood+=3; return "你没买。后来那五亩田几经转手，你偶尔路过也会想：要是当年……罢了，够吃够穿，知足常乐。（心情+3）"; } },
+    ]},
+  /* ---- 中年与晚年（通用） ---- */
+  { id:"zhiye", age:38, month:5, cond:s=>s.silver>=150&&!s.flags.zhai, text:s=>`这些年你攒下了不少家业（${Math.round(s.silver)} 两）。城中有一座青砖大宅出售，要价 150 两。妻子盼着能住进宽敞的院子。`,
+    options:[
+      { text:"买下宅院，安家立业", effect:s=>{ s.silver-=150; s.flags.zhai=true; addAsset({name:"青砖大宅", yearly:0, value:160}); s.attrs.mood+=10; s.attrs.fame+=5; return "乔迁那日，亲友齐聚。你站在自家院子里看那棵新栽的石榴树，忽然觉得半生奔波，值了。（得资产「青砖大宅」，心情+10，名声+5）"; } },
+      { text:"银子还是攥在手里踏实", effect:s=>{ s.attrs.mood-=2; return "你没买。妻子嘴上没说什么，但那晚的饭，咸了点。（心情-2）"; } },
+    ]},
+  { id:"banshe", age:50, month:1, text:s=>`五十岁了。铜镜里，你的鬓角已经斑白。夜里你偶尔会想：这辈子，过半了。`,
+    options:[
+      { text:"知天命，往前看", effect:s=>{ s.attrs.mood+=6; return "孔子说五十而知天命。你给自己温了一壶酒，敬过去的五十年，也敬往后的每一天。（心情+6）"; } },
+      { text:"也有遗憾，但不多想", effect:s=>{ s.attrs.mood-=2; s.attrs.knowledge+=2; return "夜深人静时，你也会想起那些没能走成的路。但想了半宿，你只摇摇头——人到半百，得失看淡，这就是岁月教给你的学问。（心情-2，学识+2）"; } },
+    ]},
+  { id:"zhixiu", age:60, month:1, text:s=>`六十花甲。${s.sub==="guan"?"你向朝廷上了致仕的折子，卸下官印那天，反而觉得一身轻。":s.flags.master?"你把武馆交给了最得意的弟子。":s.path==="shang"?"你把账本交给了儿女，自己退到了幕后。":"你把田交给了儿孙，自己只管含饴弄孙。"}`,
+    options:[
+      { text:"开启退休生活", effect:s=>{ s.flags.retired=true; s.attrs.mood+=10; return "往后的日子，是清晨的茶、午后的盹、傍晚的棋。操劳半生，你终于可以为自己活了。（心情+10）"; } },
+      { text:"闲不住，继续操持", effect:s=>{ s.silver+=3; s.attrs.health-=1; s.attrs.mood+=2; return "你歇了三天就坐不住了，又重新拾起活计。儿孙劝你享福，你摆摆手：「人闲着，才是真的老了。」（银两+3，健康-1，心情+2）"; } },
+    ]},
+];
+
+/* ================= 说亲事件（男子：三书六礼） ================= */
+const MARRIAGE_EVENT = { id:"shuojin", text:s=>{
+    const m = s.path==="ke"?"你是个读书人，模样周正":s.path==="shang"?"你年纪轻轻就在商号里站稳了脚":s.path==="wu"?"你身材魁梧，一身正气":"你勤快踏实，是村里有名的好后生";
+    return `你${s.age}岁了，${m}。父母请了官媒，三书六礼走了起来——纳采、问名、纳吉，媒婆说了三门亲，任你挑选。`;
+  },
+  options:[
+    { text:"书香门第的嫡女——知书达理，门第清白（需秀才功名或家财 200 两）", cond:s=>s.flags.xiucai||s.silver>=200, effect:s=>{ s.spouse={ name:genName("女"), rel:70, persona:pick(SPOUSE_PERSONAS) }; s.flags.marryYM=s.age*12+s.month; s.attrs.fame+=8; return `庚帖一合，天作之合。娶亲那日吹吹打打，新妇是书香门第的嫡女，嫁妆里半是书。乡邻都说你娶了个能旺夫益子的好媳妇。（名声+8）`; } },
+    { text:"商户之女——嫁妆丰厚，会过日子", effect:s=>{ s.spouse={ name:genName("女"), rel:65, persona:pick(SPOUSE_PERSONAS) }; s.flags.marryYM=s.age*12+s.month; s.silver+=60; s.attrs.mood+=4; return `纳征那日，嫁妆抬了半条街。新妇是商户之女，精明能干，进门就把小家的账目理得清清楚楚。（嫁妆+60 两，心情+4）`; } },
+    { text:"小家碧玉——性情温婉，知冷知热", effect:s=>{ s.spouse={ name:genName("女"), rel:85, persona:pick(SPOUSE_PERSONAS) }; s.flags.marryYM=s.age*12+s.month; s.attrs.mood+=6; return `没有十里红妆，只有一顶小花轿。新妇眉眼温柔，洞房花烛夜替你掖好被角。粗茶淡饭，也是人间至味。（夫妻情深，心情+6）`; } },
+    { text:"青梅竹马的她——两小无猜，知根知底", cond:s=>s.friends.some(f=>f.qingmei), effect:s=>{
+        const f=s.friends.find(x=>x.qingmei);
+        s.friends=s.friends.filter(x=>x!==f);
+        s.spouse={ name:f.name, rel:90, persona:f.persona||pick(SPOUSE_PERSONAS) }; s.flags.marryYM=s.age*12+s.month; s.attrs.mood+=8;
+        return `你心里早有人选——青梅竹马的${f.name}。两家本就相熟，亲事一说即合，三书六礼走得顺顺当当。洞房花烛夜，她抿嘴笑：「还记得小时候一起掏鸟窝么？」两小无猜，终成眷属，这是多少人求不来的缘分。（青梅竹马，夫妻情深，关系 90，心情+8）`;
+      } },
+    { text:"缘分未到，再等等", effect:s=>{ s.flags.wait_marry=true; s.attrs.mood-=2; return "你谢过了媒婆。娘在背后直叹气：「儿大不由娘啊。」（心情-2）"; } },
+  ]};
+
+/* ================= 随机事件池 ================= */
+const RANDOM_EVENTS = [
+  /* 童年 10-12（未婚在家期间） */
+  { id:"pashu", min:10, max:12, once:true, cond:s=>!s.spouse, text:s=>`你爬上村口的大槐树掏鸟窝，脚下一滑——`,
+    options:[
+      { text:"完了完了", effect:s=>{ s.attrs.health-=8; s.attrs.mood-=3; return "你从树上摔了下来，在床上躺了半个月。娘一边抹眼泪一边骂：「再爬那么高，打断你的腿！」（健康-8）"; } },
+      { text:"顺势抱住树干", effect:s=>{
+          if(s.attrs.health>=40){ s.attrs.mood+=2; return "说时迟那时快，你一把抱住树干，整个人挂在半空，有惊无险。小伙伴们在树下看得目瞪口呆，你得意洋洋地滑了下来。（毫发无伤，心情+2）"; }
+          s.attrs.health-=5; return "你伸手去抱树干，可惜手滑没抱稳，还是摔了个屁股墩。虽没伤着筋骨，但屁股疼了三天。（健康-5）";
+        } },
+    ]},
+  { id:"miao_hui", min:10, max:14, once:true, cond:s=>!s.spouse, text:s=>`镇上赶庙会，人山人海。糖画、面人、耍猴的……你看花了眼。`,
+    options:[
+      { text:"央求买支糖画", effect:s=>{ s.attrs.mood+=8; return "那支糖画龙你举了一路，舍不得吃，最后化了，甜水淌了满手。那是你童年最甜的一天。（心情+8）"; } },
+      { text:"去河边看舞龙", effect:s=>{ s.attrs.mood+=5; return "河边的舞龙最热闹，锣鼓声里一条金龙翻腾起舞。你挤在人堆里看得入了迷，直到散场还舍不得走。（心情+5）"; } },
+    ]},
+  { id:"jianqian", min:10, max:15, once:true, cond:s=>!s.spouse, text:s=>`你在路边捡到一串铜钱，用红绳穿着，约有几十文。四下无人。`,
+    options:[
+      { text:"在原地等失主", effect:s=>{ s.attrs.fame+=8; s.attrs.mood+=5; return "你等了半个时辰，失主寻来，是个急得满头汗的老货郎。他千恩万谢，这事传遍了村里。（名声+8，心情+5）"; } },
+      { text:"揣进怀里", effect:s=>{ s.silver+=2; s.attrs.mood-=3; return "铜钱很沉，你的心里更沉。那串钱换的糖糕，吃起来总有点不是滋味。（银两+2，心情-3）"; } },
+    ]},
+  { id:"duishou", min:10, max:16, once:true, cond:s=>!s.spouse, text:s=>`村里一个比你高半头的少年总找你麻烦，今天他又拦住了你的去路。`,
+    options:[
+      { text:"打回去！", effect:s=>{ if(s.attrs.health>45){ s.attrs.fame+=5; s.attrs.mood+=6; return "你俩滚作一团，最后他先服了软。从那以后，再没人敢欺负你。（名声+5，心情+6）"; } s.attrs.health-=6; s.attrs.mood-=5; addRival(s, genName("男"), rnd(30,55), "童年结怨"); return "你输了，鼻青脸肿地回家。但你没哭——至少你敢还手。只是那少年从此与你结下了梁子。（健康-6，心情-5，结下对头）"; } },
+      { text:"好汉不吃眼前亏，绕道走", effect:s=>{ s.attrs.knowledge+=3; return "你忍了。多年后你明白，有些架不必打，有些路不必争。这叫智慧。（学识+3）"; } },
+    ]},
+  { id:"tougongguo", min:10, max:12, once:true, cond:s=>!s.spouse, text:s=>`供桌上的果子又红又亮，是留着祭祖宗的。你瞅着四下无人，到底没忍住，偷吃了一个——转头就被撞见了。`,
+    options:[
+      { text:"老老实实认了", effect:s=>{ s.favor=Math.max(0,(s.favor||50)-3); return "你红着脸认了错，主动去祠堂跪了半个时辰。嫡母说你淘气归淘气，倒是个敢作敢当的实心眼孩子。（庇护-3）"; } },
+      { text:"推给家里的猫", effect:s=>{
+          s.xinji=(s.xinji||15)+8;
+          if(chance(0.3)){ s.favor=Math.max(0,(s.favor||50)-8); return "你指着猫说是它偷吃的。谁知嫡母瞥见你嘴角的果渍，冷笑一声：「猫还会剥皮？」罚你抄了三遍《孝经》。（心机+8，被戳穿，庇护-8）"; }
+          return "你指着趴在窗台上的猫，信誓旦旦说是它叼的。大人将信将疑，此事竟就这么揭过去了。你摸摸怦怦直跳的心口，尝到了说谎的甜头。（心机+8，蒙混过关）";
+        } },
+      { text:"拉姐姐一起分赃", cond:s=>(s.siblings||[]).some(b=>b.gender==="女"), effect:s=>{
+          const sis=(s.siblings||[]).find(b=>b.gender==="女");
+          sis.closeness=Math.min(100,sis.closeness+5); s.xinji=(s.xinji||15)+3;
+          return `你早留了个心眼，先塞了一个给${sis.name}。东窗事发时你们异口同声，互相作证。一根绳上的蚂蚱，谁也供不出谁——经此一事，你们倒成了铁盟。（${sis.name}亲近+5，心机+3）`;
+        } },
+    ]},
+  { id:"luoshui", min:10, max:12, once:true, cond:s=>!s.spouse, text:s=>`你在荷花池边捞菱角，脚下一滑，「扑通」一声栽了进去。等被路过的大人捞起来时，你已经灌了好几口水，脸都白了。`,
+    options:[
+      { text:"从此见水就绕着走", effect:s=>{ s.attrs.health-=3; s.attrs.mood-=3; return "呛水的滋味太可怕了。打那以后，你见了池塘河沟都绕着走。娘心疼你，炖了三天姜汤。（健康-3，心情-3）"; } },
+      { text:"发奋学泅水", effect:s=>{ s.attrs.health-=1; s.attrs.mood+=2; return "你不服气。整个夏天，你泡在水里扑腾，呛了无数次，硬是把泅水学会了。再路过荷花池，你挺直了腰板——摔过的地方，要自己站起来。（健康-1，毅力可嘉，心情+2）"; } },
+    ]},
+  { id:"yiniangtang", min:10, max:12, once:true, cond:s=>!s.spouse&&s.birth==="庶"&&(s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家"), text:s=>`你亲娘（姨娘）悄悄把你拉到偏房，塞给你一包饴糖，压低声音说：「拿着，别让太太瞧见。」那糖纸透着甜香。`,
+    options:[
+      { text:"接过来就吃", effect:s=>{ s.attrs.mood+=4; s.favor=Math.max(0,(s.favor||50)-5); return "糖真甜，你一口气吃了三块。谁知嫡母房里的小丫头早瞧见了，嫡母淡淡说了句「姨娘倒是会疼人」，往后的月例里，你这一房的东西又薄了几分。（心情+4，庇护-5）"; } },
+      { text:"婉拒，并回禀嫡母", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+8); s.xinji=(s.xinji||15)+3; return "你没接，转身把这事原原本本回禀了嫡母。嫡母盯着你看了半晌，亲手给你拿了碟更好的点心：「是个明白孩子。」姨娘那边，你夜里悄悄去陪她说了一回话。（庇护+8，心机+3）"; } },
+      { text:"接过来，但不吃", effect:s=>{ s.xinji=(s.xinji||15)+6; return "你接了糖，揣在怀里，一块也没动——既没有拂了亲娘的心意，也没给嫡母留话柄。小小年纪，你已经懂得什么叫两头周全。（心机+6）"; } },
+    ]},
+  { id:"xiaren", min:10, max:12, once:true, cond:s=>!s.spouse&&(s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家"), text:s=>`你房里使唤的小丫头近来越发怠慢：茶水是温的，衣裳收得拖拖拉拉，问话也爱答不理。下人最会看人下菜碟。`,
+    options:[
+      { text:"回禀嫡母处置", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+5); return "你把事情原原本本回了嫡母。嫡母当即发落，把那丫头调去了浆洗房。只是府里的下人从此都知道你会告状，明面上恭敬，背地里都防着你三分。（庇护+5，下人记仇）"; } },
+      { text:"自己立威", effect:s=>{ s.attrs.fame+=2; s.xinji=(s.xinji||15)+2; return "你没声张。第二天你当着满院下人的面，把那盏温吞茶泼在阶下，不软不硬立了规矩：「我年纪小，不是脾气好。」从此你房里的差事再没人敢含糊。（名声+2，心机+2）"; } },
+      { text:"忍着，多一事不如少一事", effect:s=>{ s.attrs.mood-=3; return "你忍了。可那丫头见你软弱，越发变本加厉，连你的份例点心都敢克扣。你把委屈咽进肚子里，夜里翻来覆去睡不着。（心情-3）"; } },
+    ]},
+  { id:"tingbijiao", min:10, max:12, once:true, cond:s=>!s.spouse, text:s=>{
+      if(s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家") return `你去找风筝，路过柴房，听见里面有人压着嗓子说话——是姨娘房里的妈妈和一个管事，说的竟是克扣各房月例、中饱私囊的事。你屏住了呼吸。`;
+      return `你去草垛里翻鸡蛋，听见草棚外有人压着嗓子说话——是里正和村里的账房，说的竟是摊派粮款时中饱私囊的事。你屏住了呼吸。`;
+    },
+    options:[
+      { text:"原原本本告诉祖母", effect:s=>{ s.favor=Math.min(100,(s.favor||50)+15); return "你把听到的一五一十禀了家中长辈。老人家雷厉风行，当天就查账拿人。事后把你叫到跟前，赏了你一匣子果子：「好孩子，这家里就需要你这样的耳朵和心。」（庇护+15）"; } },
+      { text:"烂在肚子里", effect:s=>{ s.xinji=(s.xinji||15)+8; return "你悄悄退了出去，装作什么都没听见。多一事不如少一事——这宅门里，知道得太多未必是福。但这个秘密，你记下了。（心机+8）"; } },
+      { text:"拿去要挟", effect:s=>{
+          s.xinji=(s.xinji||15)+12;
+          if(chance(0.3)){ s.favor=Math.max(0,(s.favor||50)-10); return "你找上门去，暗示要好处。谁知那妈妈是个狠角色，先发制人，反在嫡母面前告了你一状，说你小小年纪不学好、搬弄是非。你百口莫辩，吃了个大亏。（心机+12，反被倒打一耙，庇护-10）"; }
+          s.silver+=3; return "你找上门去，只说了四个字：「柴房，月例。」那妈妈的脸瞬间白了，塞给你三两银子求你千万保密。你把银子掂了掂——原来秘密也是可以换钱的。（心机+12，银两+3）";
+        } },
+    ]},
+  /* 少年 13-18 */
+  { id:"tongchuang", min:13, max:20, once:true, text:s=>`你结识了一个投缘的朋友，两人时常结伴游逛、彻夜长谈，说到将来，眼里都有光。`,
+    options:[
+      { text:"击掌为誓，将来互相扶持", effect:s=>{ s.friends.push({name:genName(s.gender), rel:40, persona:pick(FRIEND_PERSONAS)}); s.attrs.mood+=8; return "你们对着月亮击了三掌。多年后你才懂得，少年时交下的朋友，是一辈子的。（结识挚友，心情+8）"; } },
+      { text:"君子之交淡如水", effect:s=>{ s.attrs.mood+=3; s.attrs.knowledge+=2; return "你与他相谈甚欢，却都没有刻意深交。有些人不必常来往，想起时心里是暖的。（心情+3，学识+2）"; } },
+    ]},
+  { id:"denghui", min:14, max:25, once:true, text:s=>`上元灯会，满城灯火如昼。桥头有人出灯谜征对，上联是：「一夜鱼龙舞」。`,
+    options:[
+      { text:"上前一试", effect:s=>{ if(s.attrs.knowledge>=30){ s.attrs.fame+=8; s.attrs.mood+=6; return "你脱口对出「满城花月明」，满座叫好，彩头是一支上好的湖笔。（名声+8，心情+6）"; } s.attrs.mood-=2; return "你憋了半天没对上来，红着脸挤出人群。书到用时方恨少啊。（心情-2）"; } },
+      { text:"看看热闹就好", effect:s=>{ s.attrs.mood+=4; return "你吃着汤圆看了一整夜花灯。人间烟火气，最抚凡人心。（心情+4）"; } },
+    ]},
+  { id:"dabing", min:10, max:40, once:true, text:s=>`你染上时疫，高烧不退，家里请医问药，花了不少钱。`,
+    options:[
+      { text:"挺住……", effect:s=>{ s.attrs.health-=12; s.silver-=10; if(s.attrs.health>10){ s.attrs.mood+=4; return "病去如抽丝，你瘦了一大圈，但终究是熬过来了。经此一病，你更懂得身子骨的重要。（健康-12，银两-10）"; } return "这一场大病几乎要了你的命，你在鬼门关前走了一遭。（健康-12，银两-10）"; } },
+      { text:"变卖家什请名医（需 15 两）", cond:s=>s.silver>=15, effect:s=>{ s.silver-=15; s.attrs.health-=6; s.attrs.mood+=2; return "你咬牙卖了家里几件家什，请来城里最有名的郎中。三副猛药下去，烧退了。钱没了可以再挣，命只有一条。（银两-15，健康-6，心情+2）"; } },
+    ]},
+  /* 成年 19-45 */
+  { id:"guiren", min:19, max:45, once:true, text:s=>`你帮了一位过路老者的小忙，攀谈之下，老者竟颇有见识，临走时赠你一句话。`,
+    options:[
+      { text:"恭敬请教", effect:s=>{ s.attrs.knowledge+=6; s.attrs.mood+=4; return "老者说：「但行好事，莫问前程。」这句话你记了一辈子。（学识+6，心情+4）"; } },
+      { text:"萍水相逢，拱手而别", effect:s=>{ s.attrs.mood+=1; return "你谢过老者，拱手作别。人生天地间，这样的相逢就像路口的一阵风，吹过也就散了。（心情+1）"; } },
+    ]},
+  { id:"guansi", min:20, max:50, once:true, text:s=>`邻家与你家因地界起了争执，对方蛮横，一纸诉状告到了官府。`,
+    options:[
+      { text:"据理力争，奉陪到底", effect:s=>{
+          const helper = s.friends.find(f=>f.rel>=60);
+          if(helper){ s.attrs.fame+=8; s.silver-=3; return `公堂之上，你的好友${helper.name}挺身而出为你作证，县官判你家胜诉。有个靠得住的朋友，真好。（名声+8，银两-3 谢礼）`; }
+          if(s.attrs.fame>=30||s.attrs.knowledge>=35){ s.attrs.fame+=8; s.silver-=5; return "公堂之上你据理力争，县官判你家胜诉。乡邻都说你家出了个不好惹的明白人。（名声+8，银两-5 讼费）"; }
+          s.silver-=15; s.attrs.mood-=8; return "你嘴笨，说不过对方请的讼师，输了官司又赔了钱。这个世道，光有理是不够的。（银两-15，心情-8）";
+        } },
+      { text:"退一步，花钱和解", effect:s=>{ s.silver-=8; s.attrs.mood+=2; return "你让了三尺地。谁知对方反倒羞愧，后来两家竟成了世交。吃亏是福，古人诚不欺我。（银两-8，心情+2）"; } },
+    ]},
+  { id:"duchang", min:18, max:45, once:true, text:s=>`几个闲汉拉你去赌坊「玩两把小的」，说手气这东西，不试不知道。`,
+    options:[
+      { text:"去玩两把", effect:s=>{ if(chance(0.35)){ s.silver+=10; s.attrs.mood+=3; return "手气出奇地好，赢了钱你立马收手走人，身后一片哀嚎。但你心里清楚：这种钱，碰不得第二次。（银两+10）"; } s.silver-=15; s.attrs.mood-=8; return "先赢后输，等你红着眼想翻本时，裤兜已经空了。你总算明白：赌场里没有赢家，只有还没输光的人。（银两-15，心情-8）"; } },
+      { text:"摆手拒绝", effect:s=>{ s.attrs.mood+=2; return "「十赌九输。」你头也不回地走了。后来听说拉你去的那几位，有一个输得把祖传玉佩都押上了。（心情+2）"; } },
+    ]},
+  { id:"xiuqiao", min:25, max:55, once:true, text:s=>`村口的老木桥被洪水冲垮了，村民过河要绕十几里。里正号召各家出钱出力重修。`,
+    options:[
+      { text:"出 15 两修桥！", cond:s=>s.silver>=15, effect:s=>{ s.silver-=15; s.attrs.fame+=12; s.attrs.mood+=6; return "新桥落成那天，里正要刻碑记你的功，你摆摆手说：「桥是给大家走的。」（名声+12，银两-15，心情+6）"; } },
+      { text:"家里也不宽裕，出份薄力", effect:s=>{ s.attrs.fame+=3; return "你去工地帮了几天工。桥修好了，你走在上面，心里也踏实。（名声+3）"; } },
+    ]},
+  { id:"jiuyou", min:30, max:60, once:true, cond:s=>s.friends.length>0, text:s=>{ const f=pick(s.friends); s.flags._jiuyou=f.name; return `老友${f.name}登门拜访。多年未见，两人煮酒夜话，说到这些年的起落，都红了眼眶。`; },
+    options:[
+      { text:"不醉不归", effect:s=>{ const f=s.friends.find(x=>x.name===s.flags._jiuyou); if(f) f.rel=Math.min(100,f.rel+15); s.attrs.mood+=10; s.attrs.health-=2; return "那晚你们喝光了一坛酒，把少年时吹过的牛又吹了一遍。人生得一知己，足矣。（心情+10，交情更深）"; } },
+      { text:"浅酌叙旧，点到为止", effect:s=>{ const f=s.friends.find(x=>x.name===s.flags._jiuyou); if(f) f.rel=Math.min(100,f.rel+5); s.attrs.mood+=5; return "你们只温了一小壶酒，慢慢喝，慢慢聊。夜深了，你送他到门口，约定来年再聚。君子之交，淡而绵长。（心情+5，交情+5）"; } },
+    ]},
+  { id:"laoyou_qiuzhu", min:22, max:60, cond:s=>s.friends.length>0, repeatable:true, text:s=>{ const f=pick(s.friends); s.flags._qiuzhu=f.name; return `好友${f.name}上门，面带难色——家中急事，想向你借 20 两银子周转。`; },
+    options:[
+      { text:"二话不说，借！（需 20 两）", cond:s=>s.silver>=20, effect:s=>{ s.silver-=20; const f=s.friends.find(x=>x.name===s.flags._qiuzhu);
+          if(chance(0.7)){ if(f) f.rel=Math.min(100,f.rel+15); s.silver+=22; s.attrs.mood+=4; return `半年后，${f?f.name:"他"}连本带利还了 22 两，还提了两坛酒。患难见真情，你们的交情更铁了。（银两+2，交情+15）`; }
+          if(f) f.rel=Math.max(0,f.rel-5); return `那 20 两银子如泥牛入海。你没催，但心里总归有个疙瘩。（银两-20，交情-5）`;
+        } },
+      { text:"囊中羞涩，婉言推辞", effect:s=>{ const f=s.friends.find(x=>x.name===s.flags._qiuzhu); if(f) f.rel=Math.max(0,f.rel-10); s.attrs.mood-=3; return "你搓着手说了难处。对方嘴上说没事，眼神却暗了下去。（交情-10，心情-3）"; } },
+    ]},
+  /* 中老年 40+ */
+  { id:"yangsheng", min:45, max:70, once:true, text:s=>`近来总觉得精力不济，郎中建议你养身调理，只是滋补的药材要 20 两银子。`,
+    options:[
+      { text:"花钱买健康，值（需 20 两）", cond:s=>s.silver>=20, effect:s=>{ s.silver-=20; s.attrs.health+=12; return "药材虽苦，调理半年下来，你气色红润，走路带风。身体是本钱，这钱花得明白。（健康+12，银两-20）"; } },
+      { text:"是药三分毒，顺其自然", effect:s=>{ s.attrs.mood-=2; return "你没舍得。夜里咳嗽时也会想：省下的钱，将来还不知道是谁的呢。（心情-2）"; } },
+    ]},
+  { id:"sunbei", min:50, max:80, once:true, cond:s=>s.children.some(c=>c.ageY>=16), text:s=>`好消息！你的孙儿出生了，你升级当${s.gender==="女"?"祖母":"祖父"}了。`,
+    options:[
+      { text:"哈哈哈哈好！", effect:s=>{ s.attrs.mood+=12; return "你抱着襁褓里的小家伙，笑得满脸褶子堆成了菊花。四世同堂不敢想，三代同堂已是天伦。（心情+12）"; } },
+      { text:"给孙儿包个大红包（需 5 两）", cond:s=>s.silver>=5, effect:s=>{ s.silver-=5; s.attrs.fame+=3; s.attrs.mood+=8; return "你包了个沉甸甸的红包塞进襁褓，又打了把长命锁。儿女们都说老人家大方，街坊也夸你有福气。（银两-5，名声+3，心情+8）"; } },
+    ]},
+  { id:"huiyi", min:55, max:85, once:true, text:s=>`一个寻常的午后，你坐在院子里晒太阳，这一生的事，像走马灯一样在眼前过了一遍。`,
+    options:[
+      { text:"这一生啊……", effect:s=>{ s.attrs.mood+=6; return "有得意，有遗憾，但细细数来，值得记住的日子还真不少。你眯起眼，觉得太阳晒得刚刚好。（心情+6）"; } },
+      { text:"把往事记下来", effect:s=>{ s.attrs.knowledge+=2; s.attrs.mood+=3; return "你找来纸笔，把这些年的大事小事一桩桩记下来。写着写着，那些以为忘了的细节都回来了。这本册子，将来就留给儿孙看吧。（学识+2，心情+3）"; } },
+    ]},
+  { id:"laoyou_li", min:55, max:90, cond:s=>s.friends.some(f=>f.rel>=60), once:true, text:s=>{ const f=s.friends.find(x=>x.rel>=60); s.flags._liyou=f.name; return `噩耗传来：你的老友${f.name}昨夜无疾而终。你们上月还在一起喝酒。`; },
+    options:[
+      { text:"去送他最后一程", effect:s=>{ s.friends = s.friends.filter(x=>x.name!==s.flags._liyou); s.attrs.mood-=10; s.attrs.knowledge+=2; return "葬礼上你扶着棺材站了很久。人这一辈子，见一面，少一面。回去的路上，你把剩下的日子看得重了些。（心情-10）"; } },
+      { text:"他走得安详，保重自己", effect:s=>{ s.attrs.mood-=6; s.attrs.health+=1; return "无疾而终，是修来的福分。你在心里默默送了他一程，从此更注意自己的饮食起居——好好活着，才是对故人最好的念想。（心情-6，健康+1）"; } },
+    ]},
+  /* 家庭深度事件 */
+  { id:"fumu_bing", min:20, max:55, cond:s=>s.parents.father.alive||s.parents.mother.alive, repeatable:true, text:s=>{ const p = s.parents.father.alive ? "父亲" : "母亲"; s.flags._sickparent = p; return `家中捎来急信：${p}病倒了，卧床不起。郎中说得用好药，至少要 15 两。`; },
+    options:[
+      { text:"砸锅卖铁也要治（需 15 两）", cond:s=>s.silver>=15, effect:s=>{ s.silver-=15; const p=s.flags._sickparent==="父亲"?"father":"mother"; s.parents[p].health=Math.min(100,s.parents[p].health+20); s.attrs.fame+=4; s.attrs.mood+=2; return `你衣不解带侍奉汤药月余，${s.flags._sickparent}的病渐渐好了。乡里都夸你是个孝顺孩子。（银两-15，名声+4）`; } },
+      { text:"实在拿不出钱，只能听天由命", effect:s=>{ const p=s.flags._sickparent==="父亲"?"father":"mother"; s.parents[p].health-=18; s.attrs.mood-=10; return `你跪在病床前无能为力。${s.flags._sickparent}反而安慰你：「人各有命。」你转过身，眼泪砸在地上。（心情-10）`; } },
+    ]},
+  { id:"fuqi_chao", min:20, max:70, cond:s=>s.spouse&&s.spouse.rel<30, repeatable:true, text:s=>`这些日子你和${s.spouse.name}话不投机，今天为了一桩小事，终于吵了起来。${s.gender==="女"?"他":"她"}摔门进了里屋。`,
+    options:[
+      { text:"低个头，买点东西哄哄（需 3 两）", cond:s=>s.silver>=3, effect:s=>{ s.silver-=3; s.spouse.rel=Math.min(100,s.spouse.rel+18); s.attrs.mood+=2; return `你买了${s.gender==="女"?"好酒好菜":"胭脂水粉"}赔罪。夫妻没有隔夜仇，一场风雨就这么过去了。（银两-3，关系回暖）`; } },
+      { text:"冷战，谁也不理谁", effect:s=>{ s.spouse.rel=Math.max(0,s.spouse.rel-8); s.attrs.mood-=6; return "你们冷战了半个月，家里的空气都是凉的。同在一个屋檐下，却像隔了一条河。（关系恶化，心情-6）"; } },
+    ]},
+  { id:"heli", min:20, max:70, cond:s=>s.spouse&&s.spouse.rel<=8, text:s=>`你和${s.spouse.name}的感情已经走到了尽头。今天，${s.gender==="女"?"他":"她"}平静地提出了和离。`,
+    options:[
+      { text:"好聚好散", effect:s=>{ s.flags.divorced=true; s.silver=Math.round(s.silver*0.7); s.spouse=null; s.attrs.mood-=18; s.attrs.fame-=8; return "一纸和离书，从此各奔东西。家财分了对方三成。你站在门口看着那个背影远去，屋里一下子空了。（心情-18，名声-8，家财-30%）"; } },
+      { text:"跪下挽回", effect:s=>{ if(chance(0.5)){ s.spouse.rel=35; s.attrs.mood+=4; return "你放下所有面子苦苦挽留。对方红着眼眶留了下来——破镜难圆，但好歹，还圆着。（关系回到 35）"; } s.flags.divorced=true; s.silver=Math.round(s.silver*0.7); s.spouse=null; s.attrs.mood-=20; s.attrs.fame-=8; return "去意已决，留不住的人，终究留不住。（心情-20，名声-8，家财-30%）"; } },
+    ]},
+  { id:"baijia", min:40, max:75, cond:s=>s.children.some(c=>c.outcome==="败家"), repeatable:true, text:s=>{ const c=s.children.find(x=>x.outcome==="败家"); return `你那个不成器的${c.gender==="女"?"女儿":"儿子"}${c.name}又在外头惹了事，欠了人家 25 两，债主堵到了家门口。`; },
+    options:[
+      { text:"替孩子还债（需 25 两）", cond:s=>s.silver>=25, effect:s=>{ s.silver-=25; s.attrs.mood-=6; return "你颤着手拿出 25 两替孩子平了事。养不教，父之过——这句话你算是嚼出苦味了。（银两-25，心情-6）"; } },
+      { text:"让他自己承担", effect:s=>{ s.attrs.fame-=6; s.attrs.mood-=8; return "你硬着心肠没管。孩子被债主打断了腿，邻里戳着你的脊梁骨说闲话。（名声-6，心情-8）"; } },
+    ]},
+  { id:"pingdan", min:10, max:100, weight:4, repeatable:true, text:s=>`这些日子平平淡淡，无风无浪。`,
+    options:[
+      { text:"平安即是福", effect:s=>{ s.attrs.mood+=3; return "柴米油盐，日出而作。后来你会明白，平淡，本身就是一种难得的福气。（心情+3）"; } },
+      { text:"去茶馆听书解闷", cond:s=>s.silver>=1, effect:s=>{ s.silver-=1; s.attrs.mood+=5; return "你踱进茶馆，泡一壶粗茶，听说书先生拍醒木讲古。一段《三国》听得你如痴如醉，散场时天都黑了。（银两-1，心情+5）"; } },
+    ]},
+];
+
+/* ================= 家庭与子女的动态事件 ================= */
+function makeChild(){
+  const g = chance(0.5)?"男":"女";
+  const shu = S.gender==="男" && (S.concubines||0)>0 && chance(0.4);
+  const name = genName(g, S.surname);
+  S.children.push({ name, gender:g, ageY:0, talent:Math.max(5, rnd(20,60)-(shu?5:0)), closeness:50, grown:false, outcome:null, track:null, persona:pick(CHILD_PERSONAS), birth:shu?"庶":"嫡" });
+  return { name, shu };
+}
+function birthEvent(){
+  return { id:"birth_"+Date.now(), text:s=>s.gender==="女" ? `十月怀胎，你顺利产下一个孩子，母子平安！` : `家中传来喜讯——${s.spouse.name}为你添了一个孩子！`,
+    options:[
+      { text:"抱起来看看", effect:s=>{
+          const c = makeChild();
+          S.attrs.mood+=10; S.silver-=5;
+          return `小小的手攥住你的手指。你给孩子取名「${c.name}」。${c.shu?"孩子是妾室所生，记为庶出。":"孩子记在你的名下，是嫡出。"}从此干活更有劲了。（心情+10，银两-5 红鸡蛋钱）`;
+        } },
+      { text:"请先生赐名（需学识 20）", cond:s=>s.attrs.knowledge>=20, effect:s=>{
+          const c = makeChild();
+          S.attrs.fame+=2; S.attrs.mood+=8;
+          return `你翻遍诗书，为孩子取名「${c.name}」，取义深远。${c.shu?"孩子是妾室所生，记为庶出。":"孩子记在你的名下，是嫡出。"}亲友们听了都赞：到底是读书人，连取名都透着讲究。（名声+2，心情+8）`;
+        } },
+    ]};
+}
+function childKaimeng(i){
+  return { id:"kaimeng_"+i, text:s=>{ const c=S.children[i]; return `你的${c.gender==="女"?"女儿":"儿子"}${c.name}七岁了，到了开蒙的年纪。你想让这孩子走哪条路？`; },
+    options:[
+      { text:"读书（束脩 5 两）", cond:s=>s.silver>=5, effect:s=>{ const c=S.children[i]; c.track="书"; c.talent+=8; S.silver-=5; return `${S.children[i].name}入了私塾，念书倒是用功。（资质+8，银两-5）`; } },
+      { text:"学门手艺", effect:s=>{ const c=S.children[i]; c.track="艺"; c.talent+=4; return `${S.children[i].name}被送去学手艺，孩子手巧，师傅很喜欢。（资质+4）`; } },
+      { text:"习武强身", effect:s=>{ const c=S.children[i]; c.track="武"; c.talent+=4; return `${S.children[i].name}进了武馆，每天累得倒头就睡，身板眼见着结实了。（资质+4）`; } },
+    ]};
+}
+function childChulu(i){
+  return { id:"chulu_"+i, text:s=>{ const c=S.children[i]; return `一转眼，${c.name}（${c.birth||"嫡"}出）十六岁了。这些年你${c.closeness>=60?"悉心教导，和孩子很亲":"忙于生计，和孩子聚少离多"}。今天是孩子出门闯荡的日子。`; },
+    options:[
+      { text:"送 TA 上路", effect:s=>{
+          const c=S.children[i]; c.grown=true;
+          const score = c.talent + (c.closeness>=60?10:0) + rnd(0,20);
+          if(score>=80){
+            c.outcome="出息";
+            if(c.track==="书"){ S.attrs.fame+=12; return `${c.name}不负所望，考中了秀才！捷报传回那天，你在村口挺直了腰杆。孩子有出息，是为人父母最大的安慰。（名声+12）`; }
+            if(c.track==="武"){ S.attrs.fame+=10; return `${c.name}在军中屡立战功，如今已是校尉。铠甲寄回家那天，全村人都来摸一摸。（名声+10）`; }
+            S.silver+=60; return `${c.name}做生意是把好手，第一年就往家里捎回 60 两银子。（银两+60）`;
+          }
+          if(score>=55){ c.outcome="平凡"; S.attrs.mood+=4; return `${c.name}在外头寻了份安稳营生，虽不显赫，但逢年过节总记得回家看看你。平平安安，就是福气。（心情+4）`; }
+          c.outcome="败家"; S.attrs.mood-=8; return `${c.name}在外头跟着闲汉鬼混，信儿没有，债先传回了家。你长叹一声：这孩子，随他去吧。（心情-8）`;
+        } },
+      { text:"留在身边，继承家业", effect:s=>{
+          const c=S.children[i]; c.grown=true; c.outcome="守家";
+          S.attrs.mood+=5;
+          if(S.assets.length>0){ S.silver+=10; return `${c.name}留了下来，跟着你学掌家业。孩子上手很快，当年的进项就比往年多了一成。膝下有承欢，家业有传人，你心里很踏实。（心情+5，银两+10）`; }
+          return `${c.name}留了下来，与你一起操持这个家。日子虽不富裕，但一家人守在一起，比什么都强。（心情+5）`;
+        } },
+    ]};
+}
+function childYiqin(i){
+  return { id:"yiqin_"+i, text:s=>{ const c=S.children[i]; return `${c.name}（${c.birth||"嫡"}出）十五岁了，到了说亲的年纪。媒婆上门好几趟，你这当${s.gender==="女"?"娘":"爹"}的，要给${c.gender==="女"?"女儿":"儿子"}张罗婚事了。`; },
+    options:[
+      { text:"仔细相看，定一门好亲（需 10 两）", cond:s=>s.silver>=10, effect:s=>{ const c=S.children[i]; S.silver-=10; S.attrs.mood+=5;
+          if(c.birth==="庶"){ S.attrs.fame+=2; return `庶出的孩子说亲本就难些，你托了好几层关系，总算定了门殷实人家。喜事那日，你多给了份压箱钱——都是自己的孩子。（名声+2，银两-10，心情+5）`; }
+          S.attrs.fame+=4; return `你千挑万选，为${c.name}定了门门当户对的好亲。喜事办得体面，亲家赞你会办事。（名声+4，银两-10，心情+5）`; } },
+      { text:"让孩子自己拿主意", effect:s=>{ const c=S.children[i]; c.closeness=Math.min(100,c.closeness+5); S.attrs.mood+=3; return `${c.name}红着脸说已有了意中人。你索性成全了孩子们——儿孙自有儿孙福。（亲近+5，心情+3）`; } },
+    ]};
+}
+function parentDeathEvent(which){
+  const pName = which==="father"?"父亲":"母亲";
+  return { id:"death_"+which, text:s=>`${pName}没能熬过这个冬天。弥留之际，${pName}拉着你的手，只说了一句：「好好活。」`,
+    options:[
+      { text:"风光大葬，让老人走得体面", effect:s=>{
+          s.parents[which].alive=false; s.silver-=15; s.attrs.fame+=6; s.attrs.mood-=15;
+          let msg = `你按古礼守孝，${pName}的葬礼办得风光体面，四邻都来送殡，人人赞你孝顺。从此喊「${pName==="父亲"?"爹":"娘"}」，再没人应了。（银两-15，名声+6，心情-15）`;
+          if(!s.flags.inherited){
+            s.flags.inherited = true;
+            const inh = {"官宦之家":150,"书香门第":40,"富商之家":300,"普通农家":15,"贫苦人家":3}[S.family]||10;
+            s.silver += inh;
+            msg += ` 整理遗物时，你接过了家中攒下的 ${inh} 两银子——那是两位老人一辈子的心血。（遗产+${inh}两）`;
+          }
+          return msg;
+        } },
+      { text:"简办丧事，老人一生勤俭", effect:s=>{
+          s.parents[which].alive=false; s.silver-=3; s.attrs.mood-=18;
+          let msg = `${pName}一生勤俭，丧事你从简操办，只请至亲送了一程。夜里想起老人临终那句「好好活」，你的眼泪砸在了地上。（银两-3，心情-18）`;
+          if(!s.flags.inherited){
+            s.flags.inherited = true;
+            const inh = {"官宦之家":150,"书香门第":40,"富商之家":300,"普通农家":15,"贫苦人家":3}[S.family]||10;
+            s.silver += inh;
+            msg += ` 整理遗物时，你接过了家中攒下的 ${inh} 两银子——那是两位老人一辈子的心血。（遗产+${inh}两）`;
+          }
+          return msg;
+        } },
+    ]};
+}
+
+/* ================= 人物性格与互动菜单 ================= */
+const SPOUSE_PERSONAS = ["温柔","泼辣","内向","精明","豪爽"];
+const CHILD_PERSONAS = ["乖巧","顽皮","聪颖","内向"];
+const FRIEND_PERSONAS = ["豪爽","内向","精明","热心","迂腐"];
+
+/* ================= 下人与对头 ================= */
+const YAHUAN_NAMES = ["春桃","夏荷","秋菊","冬梅","翠儿","小红","琥珀","麝月","碧痕","绣橘"];
+const POZI_NAMES = ["王妈妈","李妈妈","周妈妈","吴妈妈","郑妈妈","刘妈妈"];
+function genServant(role){
+  role = role || (chance(0.6) ? "贴身丫鬟" : "婆子");
+  return { name: role==="婆子" ? pick(POZI_NAMES) : pick(YAHUAN_NAMES), role, loyalty:rnd(40,80), ability:rnd(30,70) };
+}
+function addRival(s, name, power, grievance){
+  s.rivals = s.rivals || [];
+  if(s.rivals.some(r=>r.name===name)) return;
+  s.rivals.push({ name, power, grievance });
+}
+
+/* ================= 场景行动（自旧子菜单铺平，文案数值不变） ================= */
+function spouseActs(){
+  return [
+    { label:"闲话家常", note:"灯火可亲", fn:()=>{ const sp=S.spouse; sp.rel=Math.min(100,sp.rel+4); S.attrs.mood+=2;
+        return sp.persona==="泼辣" ? `${sp.name}一边择菜一边数落你，你笑着应和。打是亲骂是爱，倒也热闹。（关系+4，心情+2）`
+             : sp.persona==="内向" ? `${sp.name}话不多，你们静静坐着，偶尔相视一笑。无声胜有声。（关系+4，心情+2）`
+             : `你与${sp.name}絮絮说着家常，灯火可亲。（关系+4，心情+2）`; } },
+    { label:"送一份心意", note:"银两-3", cond:()=>S.silver>=3, condNote:"需 3 两", fn:()=>{ const sp=S.spouse; S.silver-=3; const b=sp.persona==="精明"?12:10; sp.rel=Math.min(100,sp.rel+b); S.attrs.mood+=2;
+        return sp.persona==="内向" ? `${sp.name}接过礼物，嘴上没说什么，转身却悄悄摩挲了许久。（关系+${b}，银两-3）`
+             : sp.persona==="豪爽" ? `${sp.name}大喜过望，当晚多炒了两个菜，还烫了壶酒。（关系+${b}，银两-3）`
+             : `${sp.name}收到你的心意，眉眼里都是笑。（关系+${b}，银两-3）`; } },
+    { label:"同游踏青", note:"关系+5 心情+5 健康+1", fn:()=>{ const sp=S.spouse; sp.rel=Math.min(100,sp.rel+5); S.attrs.mood+=5; S.attrs.health+=1;
+        return sp.persona==="豪爽" ? `${sp.name}拉着你非要爬到山顶，笑声比山风还敞亮。（关系+5，心情+5，健康+1）`
+             : `你们去了城外踏青，一路慢慢走、慢慢看，山花正好。（关系+5，心情+5，健康+1）`; } },
+    { label:"灯下夜话", note:"关系+6 心情+6", cond:()=>S.spouse.rel>=60, condNote:"需关系 60", fn:()=>{ const sp=S.spouse; sp.rel=Math.min(100,sp.rel+6); S.attrs.mood+=6;
+        return "夜深人静，你们说着不足为外人道的心事。夫妻同心，其利断金。（关系+6，心情+6）"; } },
+  ];
+}
+function parentActs(){
+  const acts = [];
+  if(S.parents.father.alive) acts.push({ label:"陪父亲说说话", fn:()=>{ S.parents.father.health=Math.min(100,S.parents.father.health+4); S.attrs.mood+=2; S.attrs.knowledge+=1;
+      return "父亲话不多，但说起年轻时的事，眼里有光。你静静听着，记下不少处世道理。（父亲身体+4，心情+2，学识+1）"; } });
+  if(S.parents.mother.alive) acts.push({ label:"陪母亲拉拉家常", fn:()=>{ S.parents.mother.health=Math.min(100,S.parents.mother.health+4); S.attrs.mood+=3;
+      return "母亲拉着你的手絮絮叨叨，从东家的鸡说到西家的狗。你不嫌烦，她知道。（母亲身体+4，心情+3）"; } });
+  acts.push({ label:"送上补品", note:"银两-5 · 父母身体+8", cond:()=>S.silver>=5, condNote:"需 5 两", fn:()=>{ S.silver-=5; ["father","mother"].forEach(p=>{ if(S.parents[p].alive) S.parents[p].health=Math.min(100,S.parents[p].health+8); }); S.attrs.fame+=1;
+      return "你托人从城里捎了上好的补品。父母嘴上说浪费，转头就跟邻人夸你孝顺。（父母身体+8，名声+1，银两-5）"; } });
+  return acts;
+}
+function childActs(c){
+  return [
+    { label:`教 ${c.name} 读书识字`, note:`资质 ${Math.round(c.talent)} · 亲近 ${Math.round(c.closeness)}`, fn:()=>{ const t=c.persona==="聪颖"?5:3; c.talent=Math.min(100,c.talent+t); c.closeness=Math.min(100,c.closeness+1);
+        return c.persona==="聪颖" ? `${c.name}天资聪颖，教一遍就会，还能举一反三。你心里暗暗欢喜。（资质+${t}）`
+             : c.persona==="顽皮" ? `${c.name}坐不住，学两个字就要跑。你连哄带唬，总算教完了今日功课。（资质+${t}）`
+             : `${c.name}学得有模有样，虽然慢些，但肯下功夫。（资质+${t}，亲近+1）`; } },
+    { label:`陪 ${c.name} 玩耍`, note:"亲近+", fn:()=>{ const cl=c.persona==="顽皮"?8:5; c.closeness=Math.min(100,c.closeness+cl); S.attrs.mood+=2;
+        return c.persona==="顽皮" ? `你陪${c.name}放纸鸢、捉蛐蛐，小家伙疯得满头汗，晚上睡觉都喊你。（亲近+${cl}，心情+2）`
+             : c.persona==="内向" ? `${c.name}安静内敛，你陪 TA 看了一下午蚂蚁搬家，孩子眼里有了笑意。（亲近+${cl}，心情+2）`
+             : `你陪${c.name}玩了一下午，孩子黏着你不肯撒手。（亲近+${cl}，心情+2）`; } },
+    { label:`严格要求 ${c.name}`, note:"立规矩", fn:()=>{ c.talent=Math.min(100,c.talent+4); c.closeness=Math.max(0,c.closeness-(c.persona==="乖巧"?1:3));
+        return c.persona==="乖巧" ? `${c.name}懂事，你立下的规矩条条记住。（资质+4）`
+             : `你板起脸立了规矩。${c.name}撇着嘴不情愿，但总算收了心。（资质+4，亲近略减）`; } },
+  ];
+}
+function friendActs(){
+  const acts = [];
+  if(S.friends.length){
+    acts.push({ label:"与好友把酒言欢", note:"交情+ · 心情+3", fn:()=>{ const f=S.friends.reduce((a,b)=>a.rel>=b.rel?a:b); if(S.silver>=1) S.silver-=1; const r=f.persona==="豪爽"?9:6; f.rel=Math.min(100,f.rel+r); S.attrs.mood+=3;
+        return f.persona==="豪爽" ? `你们喝了个痛快。${f.name}拍着桌子说：「有你这个朋友，值！」（交情+${r}，心情+3）`
+             : `小馆子里，你与${f.name}浅酌慢饮，聊到打烊才散。（交情+${r}，心情+3）`; } });
+    acts.push({ label:"与好友谈古论今", note:"学识+2 · 交情+", fn:()=>{ const f=S.friends.reduce((a,b)=>a.rel>=b.rel?a:b); S.attrs.knowledge+=2; const r=f.persona==="内向"?5:3; f.rel=Math.min(100,f.rel+r);
+        return f.persona==="迂腐" ? `${f.name}引经据典，迂是迂了点，但学问是真扎实。你颇受启发。（学识+2，交情+${r}）`
+             : `一壶清茶，从先秦聊到本朝。${f.name}的见解让你颇受启发。（学识+2，交情+${r}）`; } });
+    acts.push({ label:"仗义疏财，赠 TA 5 两", note:"交情大增", cond:()=>S.silver>=5, condNote:"需 5 两", fn:()=>{ const f=S.friends.reduce((a,b)=>a.rel>=b.rel?a:b); S.silver-=5; const r=f.persona==="精明"?8:12; f.rel=Math.min(100,f.rel+r); S.attrs.mood+=2;
+        return `${f.name}推辞再三还是收了。朋友之间，不在钱上，在心诚。（交情+${r}，银两-5）`; } });
+  }
+  acts.push({ label:"结识新朋友", note:"茶楼酒肆，广结善缘", fn:()=>{ if(S.silver>=1) S.silver-=1; const f={name:genName(S.gender), rel:20, persona:pick(FRIEND_PERSONAS)}; S.friends.push(f); S.attrs.mood+=3;
+      return `茶楼里你结识了新朋友 ${f.name}，此人${f.persona}，与你相谈甚欢。（结识好友，心情+3）`; } });
+  return acts;
+}
+function careerAct(){
+  const work = {
+    ke:    S.sub==="guan" ? ["勤勉理政", ()=>{ S.flags.zhengji=(S.flags.zhengji||0)+2; S.attrs.fame+=1; return "你埋首案牍，断了几桩积压的案子。百姓的评价，就是你的政绩。（政绩+2，名声+1）"; }]
+                            : ["闭门苦读", ()=>{ S.attrs.knowledge+=2; S.attrs.mood-=1; return "青灯黄卷，又啃下几篇经义。（学识+2，心情-1）"; }],
+    shang: ["打理生意", ()=>{ const g=rnd(2,5); S.silver+=g; return `你这个月跑了几笔买卖，进账 ${g} 两。（银两+${g}）`; }],
+    wu:    S.sub==="jun" ? ["操练兵戈", ()=>{ S.attrs.health+=1; if(chance(0.3)) S.attrs.fame+=1; return "你在校场上挥汗如雨，麾下士卒对你又敬又服。（健康+1）"; }]
+          :S.sub==="guan_wu" ? ["教授武艺", ()=>{ const g=rnd(1,3); S.silver+=g; S.attrs.fame+=0.5; return `你这个月收了几个新徒弟，束脩进账 ${g} 两。（银两+${g}）`; }]
+                            : ["走镖押货", ()=>{ const g=rnd(2,4); S.silver+=g; S.attrs.health-=0.5; return `你押了一趟镖，风餐露宿，镖银 ${g} 两到手。（银两+${g}）`; }],
+    tian:  ["下地劳作", ()=>{ const g=rnd(1,3); S.silver+=g; if(chance(0.4)) S.attrs.health+=1; return `春种秋收，汗水落地就是粮食。这个月进项 ${g} 两。（银两+${g}）`; }],
+    cai:   ["研习才学", ()=>{ S.attrs.knowledge+=2; S.attrs.fame+=0.5; return "你在闺中读书作诗，笔耕不辍。才名是一点一滴攒出来的。（学识+2）"; }],
+    hong:  ["刺绣持家", ()=>{ const g=rnd(1,3); S.silver+=g; S.attrs.mood+=1; return `你飞针走线，绣了一方帕子送去绣坊寄卖，得银 ${g} 两。（银两+${g}）`; }],
+  };
+  if(S.path && work[S.path]) return { label:work[S.path][0], note:"事业是根本", fn:work[S.path][1] };
+  return null;
+}
+
+/* ================= 场景页签 ================= */
+const TABS = [ ["neizhai","内宅"], ["zhangfang","账房"], ["shuzhai","书斋"], ["renqing","人情"], ["shenti","身体"], ["jishi","记事"] ];
+const TAB_BUILDERS = { neizhai:buildNeizhai, zhangfang:buildZhangfang, shuzhai:buildShuzhai, renqing:buildRenqing, shenti:buildShenti, jishi:buildJishi };
+
+const ACT_WANSHUA = { label:"玩耍嬉戏", note:"无忧无虑的年纪", fn:()=>{ S.attrs.mood+=3; S.attrs.health+=1; return "你和小伙伴们疯跑了一天，天黑才回家挨了顿骂。（心情+3，健康+1）"; } };
+
+function neizhaiActs(){
+  const acts = [];
+  const minors = S.children.filter(c=>c.ageY<15);
+  if(S.age>=5 && S.age<=17 && !S.spouse){
+    acts.push({ label:"请安讨好", note:S.birth==="庶"?"庶出的孩子，要学会看人脸色":"承欢膝下，庇护更厚", fn:()=>{
+        const v = S.birth==="庶"?10:5; S.favor=Math.min(100,(S.favor||50)+v);
+        return S.birth==="庶" ? `你每日给嫡母祖母请安，嘴巴甜、眼里有活。庶出的孩子，从小就要学会看人脸色。（庇护+${v}）`
+                              : `你给长辈请安问好，祖母笑呵呵地塞给你一把果子。（庇护+${v}）`; } });
+    if(S.siblings && S.siblings.length) acts.push({ label:"找兄弟姐妹玩", note:`手足 ${S.siblings.length} 人，多亲近亲近`, fn:()=>{
+        const b = S.siblings.reduce((a,c)=>a.closeness>=c.closeness?a:c);
+        b.closeness=Math.min(100,b.closeness+3); S.attrs.mood+=2;
+        return `你拉着${b.gender==="男"?"兄长":"姐姐"}${b.name}捉迷藏、踢毽子，疯玩了一下午。TA 把分到的果子偷偷塞了你一半。（${b.name}亲近+3，心情+2）`; } });
+    acts.push({ label:"听妈妈讲古", note:"宅门旧事，都是学问", fn:()=>{
+        S.attrs.knowledge+=1;
+        if(chance(0.5)){ S.xinji=(S.xinji||15)+2; return "娘搂着你说古：从前哪一房的姨娘怎么上的位，哪一位太太怎么掌的家。你听得入神——原来这深宅大院里，处处都是文章。（学识+1，心机+2）"; }
+        return "娘给你讲岳母刺字、讲孔融让梨。灶膛里的火光映着她的脸，那些故事你记了一辈子。（学识+1）"; } });
+    if(S.gender==="女") acts.push({ label:"学女红", note:"描花绣朵", fn:()=>{ S.attrs.mood+=1;
+        if(chance(0.3)){ S.silver+=0.5; return "你绣的帕子被绣坊看上，得了几文钱。（心情+1，银两+0.5）"; }
+        return "你跟着娘学描花绣朵，针脚一天比一天齐整。（心情+1）"; } });
+  }
+  if(S.path==="hong" && S.age>=15){ const ca = careerAct(); if(ca) acts.push(ca); }
+  if(S.spouse) acts.push(...spouseActs());
+  if(S.parents.father.alive || S.parents.mother.alive) acts.push(...parentActs());
+  if(minors.length) acts.push(...childActs(minors[0]));
+  if(S.gender==="女" && S.spouse) acts.push({ label:"晨昏定省", note:"孝敬婆母，日常礼数", fn:()=>{
+      const pj = S.pojia = S.pojia || { popo_rel:50, concubines:0 };
+      if(pj.popo_rel>=65){ S.attrs.mood-=1; return "请安如常，婆母淡淡应了声「起来吧」。日常礼数只能维持情分，要再进一步，得靠大事上的心意。（关系不变，心情-1）"; }
+      pj.popo_rel=Math.min(65,pj.popo_rel+2); S.attrs.mood-=1; return "你一早去婆母屋里请安伺候，立了半日规矩。膝盖是酸的，规矩是足的。（婆婆关系+2，心情-1）"; } });
+  if(S.gender==="男" && S.spouse && (S.concubines||0)>0) acts.push({ label:"安抚后宅", note:"调和妻妾，后宅安宁", fn:()=>{ S.spouse.rel=Math.min(100,S.spouse.rel+5); S.attrs.mood+=1; return "你给妻子带了她爱的点心，又嘱咐妾室谨守本分。后宅安宁，男人才能安心在外。（妻子关系+5，心情+1）"; } });
+  if(S.flags.guanjia) acts.push({ label:"管家理账", note:"执掌中馈，对牌在手", fn:()=>{ S.silver+=4; S.attrs.fame+=0.5; return "你坐在花厅理账，采买、月例、人情往来，一笔一笔清清楚楚。这个月省出 4 两银子。（银两+4，名声+0.5）"; } });
+  acts.push(...servantActs());
+  return acts;
+}
+function servantActs(){
+  const acts = [];
+  if(!(S.servants||[]).length) return acts;
+  acts.push({ label:"打赏下人", note:"银两-1 · 全员忠心+3", cond:()=>S.silver>=1, condNote:"需 1 两", fn:()=>{
+      S.silver-=1; S.servants.forEach(v=>v.loyalty=Math.min(100,v.loyalty+3));
+      return "你赏了下人们一把铜钱，众人欢天喜地，干活都利索了几分。（银两-1，下人忠心+3）"; } });
+  acts.push({ label:"提拔管事", note:"能者居之，查账更有底气", cond:()=>(S.age>=15||S.flags.guanjia)&&!S.servants.some(v=>v.role==="管事"), condNote:S.age<15&&!S.flags.guanjia?"需 15 岁或执掌中馈":"已有管事", fn:()=>{
+      const v = S.servants.reduce((a,b)=>a.ability>=b.ability?a:b);
+      v.role = "管事"; S.flags.guanshi = true;
+      return `你把${v.name}提拔为管事，采买、月例都经 TA 的手过一遍。${v.name}感激涕零，办事越发尽心。（${v.name}升任管事，往后查账更易揪出克扣）`; } });
+  acts.push({ label:"发卖刁奴", note:"忠心不足 40 者方可发卖", cond:()=>(S.age>=15||S.flags.guanjia)&&S.servants.some(v=>v.loyalty<40), condNote:S.age<15&&!S.flags.guanjia?"需 15 岁或执掌中馈":"需有忠心低于 40 的下人", fn:()=>{
+      const v = S.servants.reduce((a,b)=>a.loyalty<=b.loyalty?a:b);
+      S.servants = S.servants.filter(x=>x!==v); S.attrs.fame-=2;
+      return `你发卖了${v.role}${v.name}。院里清净了，只是「苛待下人」的闲话，免不得传出去几句。（名声-2，${v.name}已发卖）`; } });
+  return acts;
+}
+function zhangfangActs(){
+  const acts = [];
+  if(S.age<12) return acts;   // 入口由 buildZhangfang 给出提示
+  const canManage = S.age>=18 || !!S.spouse;
+  const lockNote = "需年满 18 或成家";
+  acts.push({ label:"查看月例账目", note:"当家才知柴米贵", fn:()=>{
+      return `你翻开小账本，这个月的进项开销一笔笔看过去。${!S.spouse&&S.age<18?"月例银子虽薄，一笔一笔都记在册上。":"嫁妆体己虽少，也是自己的底气。"}（账目清明）`; } });
+  if(S.gender==="女" && S.birth==="嫡" && S.age>=12 && S.age<=14) acts.push({ label:"学管家", note:"嫡女要学执掌中馈", fn:()=>{ S.attrs.knowledge+=1; S.attrs.fame+=0.5; return "娘教你认账册、学规矩、看人情往来。嫡出的姑娘，将来是要执掌中馈的。（学识+1，名声+0.5）"; } });
+  if(canManage && S.path==="shang"){ const ca = careerAct(); if(ca) acts.push(ca); }
+  acts.push({ label:"查账", note:"对一对家中的账目", cond:()=>S.attrs.knowledge>=30, condNote:"需学识 30", fn:()=>{
+      const p = 0.5 + (S.flags.guanshi?0.25:0);
+      if(chance(p)){ const g=rnd(2,5); S.silver+=g; S.attrs.fame+=1; return `你连夜对账，一笔一笔指出亏空，经手的管事扑通跪下认错，退回克扣的 ${g} 两银子。（银两+${g}，名声+1）`; }
+      return "账目做得滴水不漏，没查出什么岔子。下个月再看看。"; } });
+  acts.push({ label:"置办田产", note:"80 两 · 良田，年进项 12 两", cond:()=>canManage&&S.silver>=80, condNote:canManage?"需 80 两":lockNote, fn:()=>{
+      S.silver-=80; addAsset({name:"良田", yearly:12, value:90});
+      return "你托中人相看了几遭，买下一片上好的良田。地是死的，租子是活的——这是最稳当的营生。（银两-80，得资产「良田」，每年进项 12 两）"; } });
+  acts.push({ label:"置办铺面", note:"150 两 · 铺面，年进项 18 两", cond:()=>canManage&&S.silver>=150, condNote:canManage?"需 150 两":lockNote, fn:()=>{
+      S.silver-=150; addAsset({name:"铺面", yearly:18, value:120});
+      return "你盘下一间临街铺面，租给做买卖的人家。往后每月坐在家里收租。（银两-150，得资产「铺面」，每年进项 18 两）"; } });
+  acts.push({ label:"放印子钱", note:"需 50 两 · 六成收回 65 两", cond:()=>canManage&&S.silver>=50, condNote:canManage?"需 50 两":lockNote, fn:()=>{
+      S.silver-=50;
+      if(chance(0.6)){ S.silver+=65; return "你放了 50 两印子钱给城西做买卖的人家，三个月后连本带利收回 65 两。这钱生钱的买卖，难怪叫人上瘾。（银两+15）"; }
+      S.attrs.mood-=4; return "借钱的人家一夜之间跑了路，50 两银子打了水漂。你捏着借据，明白了什么叫「见利忘险」。（银两-50，心情-4）"; } });
+  return acts;
+}
+function shuzhaiActs(){
+  if(S.age<5) return [ACT_WANSHUA];
+  const acts = [];
+  if(S.age>=15){
+    if(S.sub==="guan"){ const ca = careerAct(); if(ca) acts.push(ca); }
+    else if(S.path==="cai"){ const ca = careerAct(); if(ca) acts.push(ca); }
+    acts.push({ label:"闭门苦读", note:"学识+2 心情-1", fn:()=>{ S.attrs.knowledge+=2; S.attrs.mood-=1; return "青灯黄卷，又啃下几篇经义。（学识+2，心情-1）"; } });
+    acts.push({ label:"练字习画", note:"学识+1 心情+1", fn:()=>{ S.attrs.knowledge+=1; S.attrs.mood+=1; return "你铺纸研墨，临了一帖《兰亭》，又画了一幅墨竹。字养心，画怡情。（学识+1，心情+1）"; } });
+    acts.push({ label:"请教名师", note:"银两-3 · 学识+3", cond:()=>S.age>=7&&S.silver>=3, condNote:"需 7 岁、3 两", fn:()=>{ S.silver-=3; S.attrs.knowledge+=3; return "你备了束脩，登门向城里有名的老先生请教。先生一番点拨，胜过你闭门苦读一月。（银两-3，学识+3）"; } });
+  } else {
+    acts.push({ label:"读书识字", note:"启蒙开智，日有长进", fn:()=>{ S.attrs.knowledge+=1.5; return "你跟着先生认字读书，一笔一画，日有长进。（学识+1.5）"; } });
+  }
+  acts.push({ label:"习武强身", note:"健康+1.5", fn:()=>{ S.attrs.health+=1.5; return "你在院里扎马步、练拳脚，汗水浸透衣衫，筋骨一天比一天结实。（健康+1.5）"; } });
+  return acts;
+}
+function renqingActs(){
+  const acts = [];
+  if(S.gender==="女" && S.spouse && (S.parents.father.alive||S.parents.mother.alive)){
+    acts.push({ label:"回娘家", note:"归宁探亲（银两-1）", fn:()=>{ if(S.silver>=1) S.silver-=1; ["father","mother"].forEach(p=>{ if(S.parents[p].alive) S.parents[p].health=Math.min(100,S.parents[p].health+4); }); S.attrs.mood+=4;
+        return "你带了点心回娘家，娘做了一桌子你爱吃的菜，临走往你包袱里塞了两双亲手做的鞋。（父母身体+4，心情+4，银两-1）"; } });
+  }
+  if(S.age>=13) acts.push(...friendActs());
+  if((S.siblings||[]).length || S.parents.father.alive || S.parents.mother.alive){
+    acts.push({ label:"走亲戚", note:"骨肉至亲，常来常往", fn:()=>{
+        if((S.siblings||[]).length){ const b=pick(S.siblings); b.closeness=Math.min(100,b.closeness+4); S.attrs.mood+=2;
+          return `你提了点果子去瞧${b.gender==="男"?"兄长":"姐姐"}${b.name}，两人说了半日体己话。打断骨头连着筋，手足总是手足。（${b.name}亲近+4，心情+2）`; }
+        ["father","mother"].forEach(p=>{ if(S.parents[p].alive) S.parents[p].health=Math.min(100,S.parents[p].health+2); });
+        S.attrs.mood+=2;
+        return "你回家陪父母吃了顿便饭。老人嘴上嫌你跑得勤，眼里却是笑。（父母身体+2，心情+2）"; } });
+  }
+  acts.push({ label:"送礼应酬", note:"银两-3 · 名声+1", cond:()=>S.silver>=3, condNote:"需 3 两", fn:()=>{
+      S.silver-=3; S.attrs.fame+=1;
+      return "你备了份像样的礼，应酬了几家要紧的往来。人情练达即文章。（银两-3，名声+1）"; } });
+  if((S.rivals||[]).length){
+    acts.push({ label:"打听对头消息", note:"银两-1 · 知彼知己", cond:()=>S.silver>=1, condNote:"需 1 两", fn:()=>{
+        S.silver-=1;
+        const r = S.rivals.map(x=>`${x.name}（${x.grievance}）：近况${x.power>=70?"风头正盛，不可小觑":x.power>=50?"还算安稳，伺机而动":"潦倒落魄，已不足为患"}`).join("；");
+        return `你使了个铜钱，让相熟的小厮替你打探了一圈。${r}。（银两-1）`; } });
+  }
+  return acts;
+}
+function shentiActs(){
+  const acts = [];
+  if(S.age>=15 && (S.path==="wu"||S.path==="tian")){ const ca = careerAct(); if(ca) acts.push(ca); }
+  if(S.age<10) acts.push(ACT_WANSHUA);
+  acts.push({ label:"问诊休养", note:S.age>=30?"调理身体（银两-2）":"歇一歇", fn:()=>{
+      if(S.age>=30 && S.silver>=2){ S.silver-=2; S.attrs.health+=5; S.attrs.mood+=1; return "你请郎中把了脉，抓了几副药慢慢调理。（健康+5，银两-2）"; }
+      S.attrs.health+=3; S.attrs.mood+=2; return "你给自己放了个假，睡到日上三竿。（健康+3，心情+2）"; } });
+  acts.push({ label:"踏青", note:"心情+3 健康+1", fn:()=>{ S.attrs.mood+=3; S.attrs.health+=1; return "你去城外踏青，看了一路的桃红柳绿，回来时腿脚都轻快了。（心情+3，健康+1）"; } });
+  acts.push({ label:"静坐养神", note:"心情+2", fn:()=>{ S.attrs.mood+=2; return "你闭门静坐半日，焚一炉香，什么也不想。心绪渐渐平了。（心情+2）"; } });
+  return acts;
+}
+
+/* ---- 页签内容 ---- */
+function personRow(name, info, v, color){
+  return `<div class="p-row"><span>${name}</span><span class="v" style="width:55%;"><span style="float:right">${info}</span><div class="p-bar"><i style="width:${Math.max(0,Math.min(100,Math.round(v)))}%;background:${color||"#b09a5a"}"></i></div></span></div>`;
+}
+function mkSec(parent, title, html){
+  const d = document.createElement("div");
+  d.className = "sec";
+  d.innerHTML = (title?`<div class="sec-title2">${title}</div>`:"") + (html||"");
+  parent.appendChild(d);
+  return d;
+}
+function mkActSec(parent, acts){
+  const d = mkSec(parent, "行事");
+  if(S.ap<=0) d.insertAdjacentHTML("beforeend", `<div class="ap-hint">行动点已用完，翻月静养吧。</div>`);
+  acts.forEach(a=>{
+    const b = document.createElement("button");
+    b.className = "btn";
+    if((a.cond && !a.cond()) || S.ap<=0) b.disabled = true;
+    let note = a.note || "";
+    if(a.cond && !a.cond() && a.condNote) note = note ? note+" · "+a.condNote : a.condNote;
+    b.innerHTML = a.label + (note?`<span class="sub-note">${note}</span>`:"");
+    b.onclick = ()=>doTabAction(a);
+    d.appendChild(b);
+  });
+}
+function buildNeizhai(main){
+  let h = "";
+  if(S.spouse) h += personRow(`${S.gender==="女"?"夫君":"妻子"} ${S.spouse.name}`, `${S.spouse.persona||"温和"} · 关系 ${Math.round(S.spouse.rel)}`, S.spouse.rel, "#8b3a3a");
+  h += personRow("父亲", S.parents.father.alive?`身体 ${Math.round(S.parents.father.health)}`:"已故", S.parents.father.alive?S.parents.father.health:0, "#2e6da4");
+  h += personRow("母亲", S.parents.mother.alive?`身体 ${Math.round(S.parents.mother.health)}`:"已故", S.parents.mother.alive?S.parents.mother.health:0, "#2e6da4");
+  (S.siblings||[]).forEach(b=>{ h += personRow(`${b.gender==="男"?"兄长":"姐姐"} ${b.name}`, `${b.birth}出 · 亲近 ${Math.round(b.closeness)}`, b.closeness, "#3a8b5a"); });
+  S.children.forEach(c=>{ h += `<div class="p-row"><span>${c.gender==="女"?"女儿":"儿子"} ${c.name}（${c.birth||"嫡"}出）</span><span class="v">${c.grown?`已成年 · ${c.outcome||"在外"}`:`${c.ageY} 岁 · ${c.persona||""} · 资质 ${Math.round(c.talent)} · 亲近 ${Math.round(c.closeness)}`}</span></div>`; });
+  if(S.spouse){
+    const cn = S.gender==="女" ? (S.pojia?S.pojia.concubines:0) : (S.concubines||0);
+    if(cn>0) h += `<div class="p-row"><span>妾室</span><span class="v">${cn} 人</span></div>`;
+    if(S.gender==="女" && S.pojia) h += personRow("婆婆", `关系 ${Math.round(S.pojia.popo_rel)}`, S.pojia.popo_rel, "#6a4a8b");
+  }
+  mkSec(main, "家人", h);
+  if((S.servants||[]).length){
+    let sh = "";
+    S.servants.forEach(v=>{ sh += personRow(`${v.name} · ${v.role}`, `忠心 ${Math.round(v.loyalty)} · 能耐 ${Math.round(v.ability)}`, v.loyalty, "#6a4a8b"); });
+    mkSec(main, "下人", sh);
+  }
+  mkActSec(main, neizhaiActs());
+}
+function buildZhangfang(main){
+  if(S.age<12){ mkSec(main, "账房", `<div class="p-row"><span>尚未分例，账房的事轮不到你。</span></div>`); return; }
+  let h = `<div class="p-row"><span>现银</span><span class="v">${Math.round(S.silver)} 两</span></div>`;
+  if(S.assets.length) S.assets.forEach(a=>{ h += `<div class="p-row"><span>${a.name}</span><span class="v">${a.yearly?`年进项 ${a.yearly} 两`:"不动产"}</span></div>`; });
+  else h += `<div class="p-row"><span>名下资产</span><span class="v">无</span></div>`;
+  h += `<div class="p-row"><span>家财总值</span><span class="v">${totalWealth()} 两</span></div>`;
+  mkSec(main, "账目", h);
+  mkActSec(main, zhangfangActs());
+}
+function buildShuzhai(main){ mkActSec(main, shuzhaiActs()); }
+function buildRenqing(main){ mkActSec(main, renqingActs()); }
+function buildShenti(main){ mkActSec(main, shentiActs()); }
+function buildJishi(main){
+  const items = (S.history||[]).slice(-120).reverse();
+  const d = mkSec(main, "记事", items.length ? "" : `<div class="hist-item">尚无记事。</div>`);
+  items.forEach(t=> d.insertAdjacentHTML("beforeend", `<div class="hist-item">${t}</div>`));
+}
+
+/* ================= 渲染 ================= */
+function renderGame(){
+  $app.innerHTML = `
+    <div id="status">
+      <div class="row1">
+        <span class="age"></span>
+        <button id="btnPanel">人物</button>
+      </div>
+      <div class="row1" style="margin-bottom:0;">
+        <span class="identity"></span>
+        <span class="money"></span>
+      </div>
+      <div class="attrs"></div>
+      <div class="goal-row"><span id="goalText"></span><span class="ap" id="apText"></span></div>
+    </div>
+    <div id="main"></div>
+    <div id="tabbar"></div>`;
+  document.getElementById("btnPanel").onclick = openPanel;
+  const tb = document.getElementById("tabbar");
+  TABS.forEach(([id,name])=>{
+    const b = document.createElement("button");
+    b.className = "tab"; b.id = "tab_"+id; b.textContent = name;
+    b.onclick = ()=>{ S.tab = id; renderMain(); };
+    tb.appendChild(b);
+  });
+  const nb = document.createElement("button");
+  nb.id = "btnNext"; nb.textContent = "翻 月";
+  nb.onclick = nextMonth;
+  tb.appendChild(nb);
+  renderStatus();
+}
+function currentGoal(){
+  const g = goalList().find(x=>!x[1]);
+  if(!g) return "随遇而安";
+  const t = g[0];
+  let p = "";
+  if(t.includes("秀才")) p = `学识 ${Math.round(S.attrs.knowledge)}/40`;
+  else if(t.includes("举人")) p = `学识 ${Math.round(S.attrs.knowledge)}/58`;
+  else if(t.includes("金榜")) p = `学识 ${Math.round(S.attrs.knowledge)}/72`;
+  else if(t.includes("800")) p = `家财 ${totalWealth()}/800`;
+  else if(t.includes("200")) p = `家财 ${totalWealth()}/200`;
+  else if(t.includes("百两")) p = `家财 ${totalWealth()}/100`;
+  else if(t.includes("名声 80")) p = `名声 ${Math.round(S.attrs.fame)}/80`;
+  return p ? `目标：${t}（${p}）` : `目标：${t}`;
+}
+function renderStatus(){
+  const el = document.querySelector("#status"); if(!el || !S) return;
+  const pathName = S.path?{ke:"科举",shang:"经商",wu:"武学",tian:"田园",cai:"才女",hong:"女红"}[S.path]:"孩提";
+  el.querySelector(".age").textContent = `${S.age} 岁 · ${MONTHS[S.month-1]}`;
+  el.querySelector(".money").textContent = `银两 ${Math.round(S.silver)} 两`;
+  el.querySelector(".identity").textContent = `${S.name} · ${S.family} · ${S.birth||"嫡"}出 · ${pathName}`;
+  const box = el.querySelector(".attrs");
+  box.innerHTML = "";
+  for(const k in ATTR_NAMES){
+    const v = Math.round(S.attrs[k]);
+    box.innerHTML += `<div class="attr">${ATTR_NAMES[k]} ${v}
+      <div class="bar"><i style="width:${v}%;background:${ATTR_COLORS[k]}"></i></div></div>`;
+  }
+  const gt = document.getElementById("goalText"); if(gt) gt.textContent = currentGoal();
+  const at = document.getElementById("apText"); if(at) at.textContent = `行动 ${S.ap}/3`;
+}
+/* ---------- 记事 ---------- */
+function stripTags(h){ return String(h).replace(/<[^>]*>/g,""); }
+function hline(text){
+  S.history = S.history || [];
+  S.history.push(`【${S.age}岁·${MONTHS[S.month-1]}】${text}`);
+  if(S.history.length > 400) S.history.splice(0, S.history.length-400);
+}
+function addLog(html){ hline(stripTags(html)); }
+/* ---------- 主视图：待办帖优先，其次场景页签 ---------- */
+function postTag(ev){
+  const id = ev.id || "";
+  if(id.startsWith("tiqin") || id==="shuojin" || id==="huaqi") return "婚配";
+  if(id.startsWith("birth")) return "添丁";
+  if(id.startsWith("death")) return "白事";
+  if(id.startsWith("kaimeng") || id.startsWith("yiqin") || id.startsWith("chulu")) return "子女";
+  if(["tongshi","tongshi2","xiangshi","xiangshi2","huishi","zuxue","kaozi","beishu","shihui","xiuyi","wuf_lu"].includes(id)) return "考核";
+  if(["zhongqiu","shouyan","denghui","miao_hui","aochengpo"].includes(id)) return "宴席";
+  if(MILESTONES.includes(ev)) return "要事";
+  return "家事";
+}
+function renderMain(){
+  if(!S || S.over) return;
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  const pending = S.posts && S.posts.length>0;
+  TABS.forEach(([id])=>{
+    const b = document.getElementById("tab_"+id);
+    if(b){ b.disabled = pending; b.className = "tab" + ((S.tab||"neizhai")===id ? " on" : ""); }
+  });
+  const nb = document.getElementById("btnNext");
+  if(pending){
+    nb.disabled = true; nb.textContent = "还有帖子没处理";
+    renderPost(main, S.posts[0]);
+  } else {
+    nb.disabled = false; nb.textContent = S.ap>0 ? `翻月（余 ${S.ap} 点静养）` : "翻 月";
+    TAB_BUILDERS[S.tab||"neizhai"](main);
+  }
+}
+function renderPost(main, ev){
+  if(ev.cond && !ev.cond(S)){ S.posts.shift(); return renderMain(); }   // 同月前帖改变了条件，此帖作废
+  let txt;
+  try{ txt = typeof ev.text==="function" ? ev.text(S) : ev.text; }
+  catch(e){ S.posts.shift(); return renderMain(); }                     // 情境已失效（如配偶变故）
+  const card = document.createElement("div");
+  card.className = "post";
+  card.innerHTML = `<span class="post-tag">${postTag(ev)}</span><p>${txt}</p>`;
+  ev.options.forEach((o,i)=>{
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.innerHTML = o.text;
+    if(o.cond && !o.cond(S)) b.disabled = true;
+    b.onclick = ()=>resolvePost(ev, i, card);
+    card.appendChild(b);
+  });
+  if(!ev.options.some(o=>!o.cond || o.cond(S))){
+    const b = document.createElement("button");
+    b.className = "btn ff"; b.textContent = "作罢";
+    b.onclick = ()=>{ S.posts.shift(); hline(`【${postTag(ev)}】此事暂且作罢。`); renderMain(); };
+    card.appendChild(b);
+  }
+  main.appendChild(card);
+  if(S.posts.length > 1){
+    const q = document.createElement("div");
+    q.className = "post-queue";
+    q.textContent = `下面还压着 ${S.posts.length-1} 帖`;
+    main.appendChild(q);
+  }
+}
+
+/* ================= 月度流程 ================= */
+function advanceMonth(){
+  S.month++;
+  if(S.month > 12){ S.month = 1; S.age++; yearlySettlement(); }
+  // 月例银子（未成家且在家的少年时期，静默发放）
+  if(!S.spouse && S.age < 18){
+    const yl = S.family==="官宦之家" ? (S.birth==="嫡"?2:1)
+             : S.family==="书香门第" ? (S.birth==="嫡"?2:1)
+             : S.family==="富商之家" ? (S.birth==="嫡"?3:1.5)
+             : S.family==="普通农家" ? 0.3
+             : S.family==="贫苦人家" ? 0.1 : 0;
+    S.silver += yl;
+  }
+  // 每月自然衰减
+  if(S.age > 50) S.attrs.health -= 0.25;
+  if(S.age > 35 && chance(0.2)) S.attrs.health -= 0.3;
+  if(S.spouse) S.spouse.rel = Math.max(0, S.spouse.rel - 0.25);
+  if(S.parents.father.alive && S.age > 30) S.parents.father.health -= 0.15;
+  if(S.parents.mother.alive && S.age > 30) S.parents.mother.health -= 0.15;
+  clampAttrs();
+}
+function yearlySettlement(){
+  // 孩子长一岁
+  S.children.forEach(c=>c.ageY++);
+  // 压岁钱（未及笄/束发的孩子才有）
+  if(S.age < 15){
+    const ys = {"官宦之家":2,"书香门第":1,"富商之家":3,"普通农家":0.2,"贫苦人家":0.05}[S.family]||0;
+    if(ys > 0){ S.silver += ys; addLog(`<p class="syslog">除夕守岁，得压岁钱 ${ys} 两。</p>`); }
+  }
+  // 资产进项
+  let income = S.assets.reduce((t,a)=>t+a.yearly, 0);
+  if(S.sub==="guan") income += 45;               // 官俸
+  if(S.flags.teacher) income += 12;              // 私塾束脩
+  // 家庭开销（成家后才自己开火）
+  const expense = S.spouse ? householdSize() * 3 : 0;
+  S.silver += income - expense;
+  if(S.silver < 0) S.attrs.mood -= 4;
+  addLog(`<p class="syslog">【年终结算】资产进项 ${income} 两，家中开销 ${expense} 两，余银 ${Math.round(S.silver)} 两。</p>`);
+}
+function checkDeaths(){
+  // 玩家健康
+  if(S.attrs.health <= 0){ die("病故"); return true; }
+  // 寿终
+  if(S.age >= 62){
+    const p = ((S.age-60)*0.022 + Math.max(0,(50-S.attrs.health))/180) / 12;
+    if(chance(p) || S.age >= 88){ die("寿终"); return true; }
+  }
+  return false;
+}
+function pickEvent(){
+  // 主线
+  for(const m of MILESTONES){
+    if(m.age===S.age && (m.month||6)===S.month && !S.seen[m.id] && (!m.cond || m.cond(S))) return m;
+  }
+  // 父母离世
+  if(S.parents.father.alive && S.parents.father.health<=0) return parentDeathEvent("father");
+  if(S.parents.mother.alive && S.parents.mother.health<=0) return parentDeathEvent("mother");
+  // 子女节点
+  for(let i=0;i<S.children.length;i++){
+    const c = S.children[i];
+    if(c.ageY===7 && !S.seen["kaimeng_"+i]) return childKaimeng(i);
+    if(c.ageY===15 && !S.seen["yiqin_"+i]) return childYiqin(i);
+    if(c.ageY===16 && !S.seen["chulu_"+i]) return childChulu(i);
+  }
+  // 女子婚后主线
+  if(S.gender==="女" && S.spouse && S.pojia){
+    const ym = S.age*12 + S.month, mym = S.flags.marryYM || 0;
+    if(!S.seen.xinfu && ym >= mym+1) return XINFU_EVENT;
+    if(!S.seen.liguiju && ym >= mym+12) return LIGUIJU_EVENT;
+    if(S.age>=25 && S.age<=28 && !S.seen.naqie) return NAQIE_EVENT;
+    if(S.age>=28 && !S.flags.guanjia && !S.seen.guanpai && chance(0.12)) return GUANPAI_EVENT;
+    if(S.age>=50 && !S.seen.aochengpo && S.children.some(c=>c.grown && c.gender==="男")) return AOCHENGPO_EVENT;
+  }
+  // 男子婚后主线
+  if(S.gender==="男" && S.spouse){
+    if(S.age>=25 && S.age<=40 && !(S.concubines>0) && !S.seen.zengqie && chance(0.06)) return ZENGQIE_EVENT;
+    if(S.age>=35 && !S.seen.fenjia35 && (S.family==="官宦之家"||S.family==="书香门第"||S.family==="富商之家") && (!S.parents.father.alive || !S.parents.mother.alive) && chance(0.12)) return FENJIA35_EVENT;
+  }
+  // 男子说亲（18-26 岁，三书六礼）
+  if(S.gender==="男" && !S.spouse && !S.flags.divorced && !S.flags.wait_marry && S.age>=18 && S.age<=26 && (S.age>=24 || chance(0.08))) return MARRIAGE_EVENT;
+  if(S.gender==="男" && !S.spouse && !S.flags.divorced && S.flags.wait_marry && S.age<=28 && chance(0.06)) return MARRIAGE_EVENT;
+  // 夫死守节/改嫁（女子已婚中年后）
+  if(S.gender==="女" && S.spouse && S.age>=38 && !S.flags.fusi && chance(0.004)) return FUSI_EVENT;
+  // 生子
+  if(S.spouse && S.children.length<4 && S.age>=20 && S.age<=38 && chance(0.06)) return birthEvent();
+  // 随机池
+  if(chance(0.35)){
+    const pool = RANDOM_EVENTS.filter(e=>{
+      if(S.age < e.min || S.age > e.max) return false;
+      if(e.cond && !e.cond(S)) return false;
+      if(!e.repeatable && S.seen[e.id]) return false;
+      return true;
+    });
+    if(pool.length){
+      const bag = [];
+      pool.forEach(e=>{ const w = e.weight||1; for(let i=0;i<w;i++) bag.push(e); });
+      return pick(bag);
+    }
+  }
+  return null;
+}
+/* ---- 待办帖队列：主线优先 + 0~2 个随机事件 ---- */
+function collectPosts(){
+  const posts = [], ids = {};
+  for(let i=0;i<2;i++){
+    const ev = pickEvent();
+    if(!ev || ids[ev.id]) break;
+    ids[ev.id] = true;
+    S.seen[ev.id] = true;
+    posts.push(ev);
+  }
+  return posts;
+}
+function resolvePost(ev, i, card){
+  const opt = ev.options[i];
+  if(opt.cond && !opt.cond(S)) return;
+  let outcome = "";
+  try{ outcome = opt.effect(S) || ""; }
+  catch(e){ outcome = "时过境迁，此事不了了之。"; }   // 同月前帖已改变情境的兜底
+  clampAttrs();
+  hline(`【${postTag(ev)}】${stripTags(outcome)}`);
+  renderStatus();
+  card.innerHTML = `<span class="post-tag">${postTag(ev)}</span><div class="outcome">${outcome}</div>`;
+  const b = document.createElement("button");
+  b.className = "btn primary"; b.textContent = "知道了";
+  b.onclick = ()=>{
+    S.posts.shift();
+    if(S.attrs.health <= 0){ die("病故"); return; }
+    renderMain();
+  };
+  card.appendChild(b);
+}
+/* ---- 场景行动：每事消耗 1 行动点 ---- */
+function doTabAction(a){
+  if(S.over || S.ap<=0) return;
+  if(a.cond && !a.cond()) return;
+  const outcome = a.fn();
+  S.ap--;
+  clampAttrs();
+  if(outcome) hline(stripTags(outcome));
+  renderStatus();
+  if(S.attrs.health <= 0){ die("病故"); return; }
+  renderMain();
+}
+/* ---- 翻月：结算剩余行动点，进入下一月 ---- */
+function nextMonth(){
+  if(S.over) return;
+  if(S.posts && S.posts.length) return;   // 按钮已置灰，此处双保险
+  if(S.ap > 0){
+    S.attrs.health = Math.min(100, S.attrs.health + S.ap);
+    hline(`安心静养，将息身子。（健康+${S.ap}）`);
+  }
+  advanceMonth();
+  if(checkDeaths()) return;
+  S.ap = 3;
+  S.posts = collectPosts();
+  save();                                  // 存档粒度：月初
+  renderStatus();
+  renderMain();
+}
+
+/* ================= 人物面板 ================= */
+function goalList(){
+  const w = totalWealth();
+  if(S.gender==="女") return [
+    ["及笄成人", S.age>=15], ["觅得良婿", !!S.spouse],
+    ["诞下嫡子", S.children.some(c=>c.birth==="嫡")],
+    ["执掌中馈", !!S.flags.guanjia], ["熬成婆", S.age>=50 && !!S.spouse]];
+  if(S.path==="ke") return [
+    ["考中秀才", S.flags.xiucai], ["考中举人", S.flags.juren],
+    ["金榜题名", S.flags.jinshi], ["官至知府", S.flags.gaoguan]];
+  if(S.path==="shang") return [
+    ["自立门户开店", S.flags.shop], ["家底百两", w>=100],
+    ["商号扬名", S.flags.bigshop], ["富甲一方（家财 800 两）", w>=800]];
+  if(S.path==="wu") return [
+    ["出师闯荡", !!S.sub],
+    [S.sub==="jun"?"建功立业":S.sub==="biao"?"名动江湖":S.sub==="youxia"?"行侠仗义":"执掌武馆", !!(S.flags.jungong||S.flags.master)||S.attrs.fame>=40],
+    [S.gender==="女"?"巾帼英名（名声 80）":"一代宗师（名声 80）", S.attrs.fame>=80]];
+  if(S.path==="tian") return [
+    ["分家立业", true], ["良田五亩", S.assets.filter(a=>a.name.includes("田")).reduce((t,a)=>t+(a.name.includes("五")?5:a.name.includes("二")?2:0),0)>=5],
+    ["儿孙满堂", S.children.length>=2], ["殷实人家（家财 200 两）", w>=200]];
+  return [["启蒙进学", S.age>=11], ["选定人生道路", !!S.path]];
+}
+function careerInfo(){
+  if(S.sub==="guan") return ["官场", `现任${S.flags.gaoguan?"知府（从四品）":"知县（正七品）"} · 政绩 ${Math.round(S.flags.zhengji||0)}`];
+  if(S.path==="ke") return ["科举", S.flags.jinshi?"进士出身":S.flags.juren?"举人":S.flags.xiucai?"秀才":S.flags.teacher?"私塾先生":"童生"];
+  if(S.path==="shang") return ["经商", S.flags.bigshop?"大商号掌柜":S.flags.shop?"小铺掌柜":"商号学徒/伙计"];
+  if(S.path==="wu") return ["武学", S.sub==="youxia"?"游侠":S.sub==="jun"?(S.flags.jungong?"校尉":"什长"):S.sub==="biao"?"镖局镖师":S.flags.master?"武馆馆主":"武馆教习"];
+  if(S.path==="cai") return ["才名", S.flags.shiji?"诗集刊行的才女":S.flags.cainv?"小有名气的才女":"闺中读书人"];
+  if(S.path==="hong") return ["女红", S.flags.xiufang?"绣坊主人":S.flags.xiuniang?"有名的绣娘":"学绣的姑娘"];
+  if(S.path==="tian") return ["农耕", S.flags.dizhu?"殷实庄户":"自耕农"];
+  return ["身份", "孩提时代"];
+}
+function pRow(k,v){ return `<div class="p-row"><span>${k}</span><span class="v">${v}</span></div>`; }
+function openPanel(){
+  const b = document.getElementById("panelBody");
+  const [cTitle, cVal] = careerInfo();
+  let html = `<h2>${S.name}</h2><div class="p-sub">${S.gender} · ${S.birth||"嫡"}出 · ${S.age} 岁 · ${S.family}</div>`;
+  // 属性
+  html += `<div class="p-sec"><h3>属性</h3>`;
+  for(const k in ATTR_NAMES){
+    const v = Math.round(S.attrs[k]);
+    html += `<div class="p-row"><span>${ATTR_NAMES[k]}</span><span class="v" style="width:55%;"><span style="float:right">${v}</span><div class="p-bar"><i style="width:${v}%;background:${ATTR_COLORS[k]}"></i></div></span></div>`;
+  }
+  const xj = S.xinji===undefined?15:S.xinji;
+  html += pRow("性情", `${xj<30?"纯善":xj>60?"心机深沉":"通透"} · 心机 ${Math.round(xj)}`);
+  html += `</div>`;
+  // 钱财
+  html += `<div class="p-sec"><h3>钱财</h3>${pRow("现银", Math.round(S.silver)+" 两")}${pRow("家财总值", totalWealth()+" 两")}`;
+  if(S.assets.length) S.assets.forEach(a=>{ html += pRow(a.name, a.yearly?`年进项 ${a.yearly} 两`:"不动产"); });
+  else html += pRow("名下资产", "无");
+  html += `</div>`;
+  // 家庭
+  html += `<div class="p-sec"><h3>家庭</h3>`;
+  html += pRow("父亲", S.parents.father.alive?`健在 · 身体 ${Math.round(S.parents.father.health)}`:"已故");
+  html += pRow("母亲", S.parents.mother.alive?`健在 · 身体 ${Math.round(S.parents.mother.health)}`:"已故");
+  html += pRow("配偶", S.spouse?`${S.spouse.name} · ${S.spouse.persona||"温和"} · 关系 ${Math.round(S.spouse.rel)}`:(S.flags.divorced?"已和离":S.flags.widow?"鳏寡":S.flags.unmarried?"终身未嫁（青灯自守）":"未婚"));
+  if(S.spouse && S.gender==="女" && S.pojia){
+    html += pRow("婆婆", `关系 ${Math.round(S.pojia.popo_rel)}`);
+    html += pRow("妾室", `${S.pojia.concubines} 人`);
+  }
+  if(S.spouse && S.gender==="男") html += pRow("妾室", `${S.concubines||0} 人`);
+  (S.siblings||[]).forEach(b=>{
+    html += pRow(`${b.gender==="男"?"兄长":"姐姐"} ${b.name}`, `${b.birth}出 · 亲近 ${Math.round(b.closeness)}`);
+  });
+  if(S.children.length){
+    S.children.forEach(c=>{
+      html += pRow(`${c.gender==="女"?"女儿":"儿子"} ${c.name}（${c.birth||"嫡"}出）`, c.grown?`已成年 · ${c.outcome||"在外"}`:`${c.ageY} 岁 · ${c.persona||""} · 资质 ${Math.round(c.talent)} · 亲近 ${Math.round(c.closeness)}`);
+    });
+  } else html += pRow("子女", "暂无");
+  html += `</div>`;
+  // 朋友
+  html += `<div class="p-sec"><h3>朋友</h3>`;
+  if(S.friends.length) S.friends.forEach(f=>{ html += pRow(f.name, `${f.persona||""} · 交情 ${Math.round(f.rel)}`); });
+  else html += pRow("暂无挚友", "可在「人情」页结识");
+  html += `</div>`;
+  // 下人
+  if((S.servants||[]).length){
+    html += `<div class="p-sec"><h3>下人</h3>`;
+    S.servants.forEach(v=>{ html += pRow(`${v.name} · ${v.role}`, `忠心 ${Math.round(v.loyalty)} · 能耐 ${Math.round(v.ability)}`); });
+    html += `</div>`;
+  }
+  // 对头
+  if((S.rivals||[]).length){
+    html += `<div class="p-sec"><h3>对头</h3>`;
+    S.rivals.forEach(r=>{ html += pRow(r.name, `势力 ${Math.round(r.power)} · ${r.grievance}`); });
+    html += `</div>`;
+  }
+  // 事业
+  html += `<div class="p-sec"><h3>${cTitle}</h3>${pRow("当前", cVal)}`;
+  if(S.gender==="女" && S.spouse) html += pRow("管家权", S.flags.guanjia?"执掌中馈（对牌在手）":"未掌对牌");
+  html += `</div>`;
+  // 目标
+  html += `<div class="p-sec"><h3>人生目标</h3>`;
+  goalList().forEach(([t,done])=>{ html += `<div class="goal ${done?"done":"miss"}">${done?"✓":"○"} ${t}</div>`; });
+  html += `</div>`;
+  html += `<button class="btn primary p-close" id="btnClosePanel">返 回</button>`;
+  b.innerHTML = html;
+  document.getElementById("panel").classList.add("show");
+  document.getElementById("btnClosePanel").onclick = closePanel;
+}
+function closePanel(){ document.getElementById("panel").classList.remove("show"); }
+
+/* ================= 开局与结局 ================= */
+function newGame(family, gender, birth){
+  const g = gender || (chance(0.5) ? "男" : "女");
+  const surname = pick(SURNAMES);
+  S = { name:genName(g, surname), surname, gender:g, family:family.name, birth:birth||"嫡",
+        age:10, month:3, favor:50,
+        attrs:{ health:70, knowledge:10, fame:5, mood:70 },
+        silver:family.silver, assets:(family.assets||[]).map(a=>({...a})),
+        path:null, sub:null, flags:{}, seen:{},
+        parents:{ father:{alive:true, health:rnd(55,70)}, mother:{alive:true, health:rnd(55,70)} },
+        spouse:null, pojia:null, concubines:0, children:[], friends:[], over:false,
+        servants:[], rivals:[], history:[], ap:3, posts:[], tab:"neizhai",
+        xinji:15, siblings:[] };
+  // 生成兄弟姐妹
+  if(family.name==="官宦之家"||family.name==="书香门第"||family.name==="富商之家"){
+    const n = rnd(1,2);
+    for(let i=0;i<n;i++){
+      const sg = chance(0.5)?"男":"女";
+      S.siblings.push({ name:genName(sg, surname), gender:sg, birth:chance(0.5)?"庶":"嫡", closeness:rnd(40,60), persona:pick(CHILD_PERSONAS) });
+    }
+    if(S.birth==="庶" && !S.siblings.some(b=>b.birth==="嫡")) S.siblings[0].birth = "嫡";  // 庶出的孩子，头上总有位嫡出的手足
+  } else {
+    const n = rnd(0,2);
+    for(let i=0;i<n;i++){
+      S.siblings.push({ name:genName("男", surname), gender:"男", birth:"嫡", closeness:rnd(40,60), persona:pick(CHILD_PERSONAS) });
+    }
+  }
+  for(const k in family.attrs) S.attrs[k] += family.attrs[k];
+  if(S.birth==="嫡") S.attrs.fame += 5;   // 嫡出：名正言顺
+  else S.attrs.mood -= 3;                  // 庶出：自小要看人脸色
+  if(family.name==="官宦之家"||family.name==="书香门第"||family.name==="富商之家"){
+    S.servants = [genServant("贴身丫鬟"), genServant("婆子")];   // 大户人家，自小便有下人伺候
+  }
+  const love = pick([
+    { k:"书", text:"一本书，抱着死活不撒手。父亲大喜：「此子将来必是个读书人！」", fn:()=>{ S.attrs.knowledge+=8; } },
+    { k:"商", text:"一把算盘，拨得珠子噼啪响。众人哄笑：「是个会过日子的！」", fn:()=>{ S.silver+=5; } },
+    { k:"武", text:"一柄木剑，舞得虎虎生风。叔公赞道：「好！有将门之气！」", fn:()=>{ S.attrs.health+=6; } },
+    { k:"玩", text:"一只拨浪鼓，摇得咯咯直笑，逗得满屋子人都跟着乐了", fn:()=>{ S.attrs.mood+=10; } },
+  ]);
+  S.flags.love = love.k;
+  love.fn();
+  clampAttrs();
+  hline(`转眼你已在${S.family}长到十岁，是${S.birth}出的孩子。还记得三岁抓周那年，满屋亲戚都盯着，你一把抓了${love.text}。${S.birth==="庶"?"庶出的孩子早学会看人脸色，这些年你比同龄人懂事得多。":""}${family.desc}`);
+  S.posts = collectPosts();
+  renderGame();
+  renderMain();
+  save();
+}
+function die(cause){
+  S.over = true;
+  const a = S.attrs, w = totalWealth();
+  let title, body;
+  if(cause === "病故" && S.age < 40){
+    title = "英年早逝";
+    body = `${S.age} 岁这年，你撒手人寰。人生还没来得及展开，就匆匆落幕。若有来生，愿你福寿绵长。`;
+  } else if(S.gender === "男" && (S.concubines||0) > 0 && S.spouse && S.spouse.rel < 20){
+    title = "宠妾灭妻";
+    body = `${S.age} 岁，你撒手人寰。你晚年宠妾灭妻，嫡妻寒心，后宅失序，儿女离心。你走后没几年，这个家就散了。`;
+  } else if(S.gender === "女" && S.flags.unmarried){
+    title = "青灯自守";
+    body = `${S.age} 岁，你安然离世。一生未嫁，青灯古卷，你把日子过成了自己的模样。族谱上有你一笔：性贞静，善诗书。`;
+  } else if(S.gender === "女" && S.flags.guanjia && S.pojia && S.pojia.popo_rel >= 85 && S.age >= 55 && S.children.some(c=>c.birth==="嫡")){
+    title = "当家主母";
+    body = `${S.age} 岁，你安详离世。执掌中馈半生，上孝婆母，下抚儿孙，满府上下无不敬服。出殡那日全府缟素，跪在灵前的儿媳，像极了当年的你。`;
+  } else if(S.gender === "女" && S.flags.zhenjie){
+    title = "贞节流芳";
+    body = `${S.age} 岁，你安然离世。你一生守节抚孤，地方官为你请立贞节牌坊，你的名字刻在了牌坊上，也刻在了乡邻心里。`;
+  } else if(S.gender === "女" && S.flags.gaoming){
+    title = "诰命夫人";
+    body = `${S.age} 岁，你走完了这一生。凤冠霞帔，夫荣妻贵，你把一个官宦之家打理得上下和睦，儿孙成器。`;
+  } else if(S.gender === "女" && S.path === "cai" && a.fame >= 60){
+    title = "一代才女";
+    body = `${S.age} 岁，你搁下了笔。你的诗集还在世间流传，多年后，仍有女子在灯下读你的句子，心生向往。`;
+  } else if(S.gender === "女" && S.path === "hong" && S.flags.xiufang){
+    title = "锦绣人生";
+    body = `${S.age} 岁，你安详离世。从一双拿针线的手，到执掌一间绣坊、一个大家——你这一生，绣的是锦绣，过的也是锦绣。`;
+  } else if(S.gender === "女" && S.path === "wu" && a.fame >= 60){
+    title = "巾帼豪杰";
+    body = `${S.age} 岁，你的剑归了鞘。江湖上从此少了一位女侠，多了一个传说。谁说女子不如男？`;
+  } else if(S.gender === "女" && S.flags.fugui){
+    title = "苦尽甘来";
+    body = `${S.age} 岁，你含笑而逝。当年红袖添香供夫读书的清苦日子，都化作了后半生的诰命荣华。`;
+  } else if(a.fame >= 75 && S.sub === "guan"){
+    title = "一代名臣";
+    body = `你在 ${S.age} 岁那年${cause==="寿终"?"寿终正寝":"离世"}。从寒窗苦读到位列朝堂，你这一生清正为官，史书上有你一笔，百姓口中念你多年。`;
+  } else if(a.fame >= 70 && S.path === "ke"){
+    title = "一方名士";
+    body = `${S.age} 岁，你走完了这一生。功名利禄如过眼云烟，但你读过的书、教过的学生、写下的文章，都留在了这片土地上。`;
+  } else if(w >= 800){
+    title = "富甲一方";
+    body = `${S.age} 岁，你与世长辞。从一穷二白到日进斗金，你白手起家的故事，成了城里说书先生最爱讲的段子。`;
+  } else if(S.flags.master || (S.sub === "jun" && S.flags.jungong)){
+    title = "威名远扬";
+    body = `${S.age} 岁，你驾鹤西去。半生戎马、一身正气，你教出的弟子、带过的兵，会把你的名字一直传下去。`;
+  } else if(S.age >= 75){
+    title = "寿终正寝";
+    body = `${S.age} 岁高龄，你在睡梦中安详离世。儿孙绕膝，四世同堂，这一生虽有风雨，但落幕时暖日和风。`;
+  } else if(S.path === "tian" && a.mood >= 70){
+    title = "田园一生";
+    body = `${S.age} 岁，你躺在了自己种了一辈子的土地上。没有大富大贵，但每一口饭都是自己种的，每一天都睡得安稳。`;
+  } else {
+    title = "平凡一生";
+    body = `${S.age} 岁，你离开了人世。这一生没有惊天动地，但认真活过的每一天，都算数。`;
+  }
+  const career = S.sub==="guan" ? (S.flags.gaoguan?"知府":"知县")
+               : S.flags.jinshi ? "进士" : S.flags.juren ? "举人" : S.flags.xiucai ? "秀才"
+               : S.flags.zhenjie ? "贞节烈妇" : S.flags.gaoming ? "诰命夫人"
+               : ({ke:"读书人",shang:"商人",wu:"习武之人",tian:"庄稼人",cai:"才女",hong:"绣娘"})[S.path] || "凡人";
+  body += `<br><br>—— 人生结算 ——<br>姓名：${S.name}<br>享年：${S.age} 岁<br>出身：${S.family} · ${S.birth||"嫡"}出<br>功名/事业：${career}<br>家财：${w} 两（${w>=800?"万贯家财":w>=200?"小康之家":"勉强温饱"}）<br>子女：${S.children.length>0?S.children.length+" 人":"无"}<br>挚友：${S.friends.length>0?S.friends.length+" 人":"无"}`;
+  clearSave();
+  closePanel();
+  $app.innerHTML = `
+    <div class="screen">
+      <div class="ending-title">${title}</div>
+      <div class="ending-body">${body}</div>
+      <button class="btn primary" id="btnAgain">再活一次</button>
+      <div class="hint">每一个人生，都值得再来一次</div>
+    </div>`;
+  document.getElementById("btnAgain").onclick = titleScreen;
+}
+
+/* ---------- 标题页 ---------- */
+function titleScreen(){
+  const saved = loadSave();
+  $app.innerHTML = `
+    <div class="screen">
+      <h1>古代人生</h1>
+      <div class="sub">一世浮萍 · 皆由你选</div>
+      <button class="btn primary" id="btnNew">开始新人生</button>
+      ${saved && !saved.over ? `<button class="btn" id="btnContinue">继续上次的人生（${saved.age} 岁）</button>` : ""}
+      <div class="hint">文字冒险 · 适合手机游玩 · 进度自动保存</div>
+    </div>`;
+  document.getElementById("btnNew").onclick = birthScreen;
+  const bc = document.getElementById("btnContinue");
+  if(bc) bc.onclick = ()=>{
+    S = saved; S.over = false;
+    S.servants = S.servants||[]; S.rivals = S.rivals||[]; S.history = S.history||[];
+    S.ap = S.ap==null ? 3 : S.ap; S.tab = S.tab || "neizhai";
+    S.posts = collectPosts();             // 月初存档，帖子重新生成
+    hline("光阴流转，故事继续……");
+    renderGame(); renderMain();
+  };
+}
+function birthScreen(){
+  const DISHU_FAMS = ["官宦之家","书香门第","富商之家"];
+  let gender = null, family = null;
+  $app.innerHTML = `
+    <div class="screen">
+      <h1 style="font-size:28px;">投胎转世</h1>
+      <div class="sub" id="stepTip">这一世，你是男儿身还是女儿身？</div>
+      <button class="btn" id="gM">男儿身</button>
+      <button class="btn" id="gF">女儿身</button>
+      <div id="famArea" style="display:none; width:100%; margin-top:8px;">
+        <div class="sub">再选一户人家投胎：</div>
+        <div id="fams"></div>
+      </div>
+      <div id="birthArea" style="display:none; width:100%; margin-top:8px;"></div>
+    </div>`;
+  const fams = [...FAMILIES].sort(()=>Math.random()-0.5).slice(0,3);
+  const box = document.getElementById("fams");
+  fams.forEach(f=>{
+    const d = document.createElement("div");
+    d.className = "fam-card";
+    d.innerHTML = `<h3>${f.name}</h3><p>${f.desc}</p>`;
+    d.onclick = ()=>{
+      family = f;
+      document.getElementById("famArea").style.display = "none";
+      if(DISHU_FAMS.includes(f.name)){
+        document.getElementById("stepTip").textContent = `${f.name} · 你是嫡出还是庶出？`;
+        const ba = document.getElementById("birthArea");
+        ba.style.display = "block"; ba.innerHTML = "";
+        [["嫡","正室所生，名正言顺。名声更好，月例更厚，将来分家占大头。"],["庶","妾室所生，自小要看人脸色。月例减半，将来分家只得三成。"]].forEach(([b,desc])=>{
+          const c = document.createElement("div");
+          c.className = "fam-card";
+          c.innerHTML = `<h3>${b}出</h3><p>${desc}</p>`;
+          c.onclick = ()=>newGame(family, gender, b);
+          ba.appendChild(c);
+        });
+      } else {
+        newGame(family, gender, "嫡");
+      }
+    };
+    box.appendChild(d);
+  });
+  const pickGender = g=>{
+    gender = g;
+    document.getElementById("gM").style.display = "none";
+    document.getElementById("gF").style.display = "none";
+    document.getElementById("stepTip").textContent = (g==="男" ? "这一世为男儿身。" : "这一世为女儿身。") + "再选户人家：";
+    document.getElementById("famArea").style.display = "block";
+  };
+  document.getElementById("gM").onclick = ()=>pickGender("男");
+  document.getElementById("gF").onclick = ()=>pickGender("女");
+}
+
+/* ================= 女子专属内容 ================= */
+MILESTONES.push(
+  { id:"lizhi_f", age:12, month:9, cond:s=>s.gender==="女", text:s=>{
+      if(s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家") return `你十二岁了，眉眼间已有了大姑娘的模样。娘把你叫到跟前，问你：丫头，往后的路，你想往哪头用心？`;
+      return `你十二岁了。穷人家的女儿早当家，娘问你：丫头，学点什么傍身？`;
+    },
+    options:[
+      { text:"潜心才学——读书作诗，做个才女", cond:s=>s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家", effect:s=>{ s.path="cai"; s.attrs.knowledge+=6; s.silver-=3; return "父亲为你延请西席，你日日在闺中读书写字。先生说：「这孩子的悟性，不输男儿。」（踏上才女路，学识+6，银两-3）"; } },
+      { text:"精研女红管家——将来执掌中馈", cond:s=>s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家", effect:s=>{ s.path="hong"; s.attrs.knowledge+=2; s.attrs.mood+=4; return "你跟着娘学刺绣、学看账、学管家理事。娘说：「女儿家嫁过去，掌家才是安身立命的本事。」（踏上女红管家路，学识+2，心情+4）"; } },
+      { text:"习武——谁说女子不如男（名声有争议）", cond:s=>s.family==="官宦之家"||s.family==="书香门第"||s.family==="富商之家", effect:s=>{ s.path="wu"; s.attrs.health+=8; s.attrs.fame-=3; return "你拜入武馆，天不亮就起来扎马步。闲话很快传开了——女儿家抛头露面习武，终究惹人非议。但你不在乎。（健康+8，名声-3）"; } },
+      { text:"学持家——烧饭喂鸡，操持日子", cond:s=>s.family==="普通农家"||s.family==="贫苦人家", effect:s=>{ s.path="tian"; s.attrs.health+=6; s.attrs.mood+=4; return "你跟着娘烧饭、喂鸡、下地。日子平淡，但把家里打理得井井有条也是本事。（健康+6，心情+4）"; } },
+      { text:"学女红——补贴家用", cond:s=>s.family==="普通农家"||s.family==="贫苦人家", effect:s=>{ s.path="hong"; s.attrs.mood+=3; s.silver+=2; return "你跟着村里的老绣娘学针线，绣的帕子能换几个铜板贴补家用。娘摸着你的头说：「我儿懂事。」（踏上女红路，心情+3，银两+2）"; } },
+    ]},
+  { id:"jiji", age:15, month:3, cond:s=>s.gender==="女", text:s=>`三月三，上巳节，你及笄了。母亲为你挽起发髻，插上簪子——从今日起，你就是大姑娘了，往后上门议亲的人，怕是要来了。`,
+    options:[
+      { text:"拜谢父母养育之恩", effect:s=>{
+          if(s.family==="官宦之家"&&s.birth==="嫡"){ s.attrs.fame+=8; s.attrs.mood+=5; return "你的及笄礼办得极体面——宾客盈门，赞礼的是城里有名的全福太太。嫡女及笄，这就是门第的排场。（名声+8，心情+5）"; }
+          if(s.birth==="庶"){ s.attrs.fame+=3; s.attrs.mood+=2; return "你的及笄礼从简办了，嫡母只淡淡说了句「也是大姑娘了」。你叩谢爹娘，心里盼着早日有个自己的归宿。（名声+3，心情+2）"; }
+          s.attrs.mood+=4; s.attrs.fame+=2; return "家里不宽裕，及笄礼从简。娘煮了一碗长寿面，卧了两个鸡蛋，你吃得眼眶发热。（心情+4，名声+2）"; } },
+      { text:"对镜自照，憧憬将来", effect:s=>{ s.attrs.mood+=4; return "你对着铜镜看了又看——发髻上的簪子衬得眉眼格外明亮。往后的日子会是什么模样？你托着腮，想了一下午。（心情+4）"; } },
+    ]},
+  /* 才女线 */
+  { id:"shihui", age:17, month:4, cond:s=>s.gender==="女"&&s.path==="cai", text:s=>`城中举办诗会，你的诗稿被闺中好友送了去。三日后，满城都在传诵那句「人比黄花瘦」般的好句子。（学识 ${Math.round(s.attrs.knowledge)}，需 40 以上）`,
+    options:[
+      { text:"静候佳音", effect:s=>{
+          if(s.attrs.knowledge>=40){ s.attrs.fame+=15; s.attrs.mood+=8; s.flags.cainv=true; return "诗会头名！你的才名传开了，连知府夫人都下了帖子请你去赴宴。才女之名，也是一种立身之本。（名声+15，心情+8）"; }
+          s.attrs.mood-=6; return "诗稿石沉大海。你把稿子烧了，又重新铺开一张纸——笔耕不辍，终有出头日。（心情-6）";
+        } },
+    ]},
+  { id:"caiming", age:30, month:5, cond:s=>s.gender==="女"&&s.path==="cai"&&s.flags.cainv, text:s=>`这些年你的诗词集子私下流传甚广，有书商找上门，想付 20 两银子刊印你的诗集。`,
+    options:[
+      { text:"刊印诗集", effect:s=>{ s.silver+=20; s.attrs.fame+=10; s.flags.shiji=true; return "诗集刊印面世，一时洛阳纸贵。你坐在窗前看着样书，想起十二岁那年的选择——值了。（银两+20，名声+10）"; } },
+      { text:"诗词自怡，不为稻粱谋", effect:s=>{ s.attrs.mood+=5; s.attrs.fame+=3; return "你婉拒了书商。诗是写给自己的，这份清高传出去，反倒更让人敬重。（心情+5，名声+3）"; } },
+    ]},
+  /* 女红线 */
+  { id:"xiuyi", age:17, month:5, cond:s=>s.gender==="女"&&s.path==="hong", text:s=>`县里办绣品赛会，你绣了一幅「百鸟朝凤」送去参选。`,
+    options:[
+      { text:"送去参选", effect:s=>{ s.attrs.fame+=8; s.silver+=10; s.flags.xiuniang=true; return "你的绣品拿了头彩，知府夫人当场定了一副屏风。从此城里大户人家的绣活，都指名要你。（名声+8，银两+10）"; } },
+    ]},
+  { id:"xiufang", age:25, month:6, cond:s=>s.gender==="女"&&s.path==="hong"&&s.flags.xiuniang, text:s=>`你的绣活名声越来越大，攒下的钱也够盘一间小铺面了。只是女子开店抛头露面，免不得招人闲话。开一间自己的绣坊，如何？`,
+    options:[
+      { text:"开绣坊！（需 80 两）", cond:s=>s.silver>=80, effect:s=>{ s.silver-=80; addAsset({name:"绣坊", yearly:30, value:150}); s.flags.xiufang=true; s.attrs.fame+=5; s.attrs.mood+=2; return "绣坊开起来了，徒弟收了七八个，官府的活计都送来你这里。闲话自然是有的，但白花花的银子进账，比什么都实在。（得资产「绣坊」，名声+5）"; } },
+      { text:"在家接活就好", effect:s=>{ s.silver+=15; s.attrs.mood+=4; return "你安心在家接活，大户人家的订单接不完。钱不少赚，还落个清净。（银两+15，心情+4）"; } },
+    ]},
+  /* 女子习武线 */
+  { id:"wuf_lu", age:17, month:6, cond:s=>s.gender==="女"&&s.path==="wu", text:s=>`比武大会上，你连胜三场，最后一个回合把对手打下了擂台。台下议论纷纷——有喝彩的，也有摇头的。`,
+    options:[
+      { text:"抱拳谢场", effect:s=>{ s.attrs.fame+=6; s.attrs.mood-=3; return "喝彩声有，闲话也有——「女儿家舞刀弄枪，成何体统。」你拱手谢场，心里清楚：这条路，要用双倍的本事去走。（名声+6，心情-3）"; } },
+    ]},
+  { id:"wuf_jiyu", age:25, month:8, cond:s=>s.gender==="女"&&s.path==="wu", text:s=>`你的武艺已成，往后的路要定下来了。镖局缺压镖的好手，武馆缺教习的师父，江湖上也有行侠仗义的游侠儿。`,
+    options:[
+      { text:"走镖江湖", effect:s=>{ s.sub="biao"; s.silver+=10; s.attrs.fame+=5; return "你成了镖局唯一的女镖师。镖旗一展，绿林中人见是女将，反倒敬你三分。（银两+10，名声+5）"; } },
+      { text:"开馆收徒", effect:s=>{ s.sub="guan_wu"; s.flags.master=true; addAsset({name:"女子武馆", yearly:20, value:120}); s.attrs.mood+=8; return "你开了一间女子武馆，专收女弟子。第一天来了十几个姑娘，眼里都闪着光。（得资产「女子武馆」，心情+8）"; } },
+      { text:"行侠仗义，游戏人间", effect:s=>{ s.sub="youxia"; s.attrs.mood+=10; s.attrs.fame+=8; return "你一柄剑、一匹马，四海为家。哪里有不平事，哪里就有你的传说。（心情+10，名声+8）"; } },
+    ]},
+  /* 女子田园线 */
+  { id:"tianf", age:20, month:7, cond:s=>s.gender==="女"&&s.path==="tian"&&s.spouse, text:s=>`你过门已有段日子了。公婆看在眼里：这个媳妇勤快、会持家，家里家外一把好手。`,
+    options:[
+      { text:"把日子过得红火", effect:s=>{ s.silver+=10; s.attrs.mood+=6; s.attrs.fame+=4; return "你腌的酱菜、养的鸡鸭、种的菜畦，样样都拿得出手。日子越过越红火，婆婆逢人就夸。（银两+10，心情+6，名声+4）"; } },
+      { text:"攒钱盘个豆腐坊（需 20 两）", cond:s=>s.silver>=20, effect:s=>{ s.silver-=20; addAsset({name:"豆腐坊", yearly:10, value:40}); return "你拿出攒下的体己钱，在村口盘了间豆腐坊。三更磨豆、五更点卤，你做的豆腐又嫩又香，方圆几里的人都来买。（银两-20，得资产「豆腐坊」，每年进项 10 两）"; } },
+    ]},
+);
+
+/* ---- 女子议亲（及笄后的三波提亲，重头戏） ---- */
+function dowryOf(s){
+  const t = { "官宦之家_嫡":{silver:200, asset:{name:"陪嫁田庄", yearly:30, value:200}}, "官宦之家_庶":{silver:60},
+              "书香门第_嫡":{silver:100}, "书香门第_庶":{silver:40},
+              "富商之家_嫡":{silver:300}, "富商之家_庶":{silver:100},
+              "普通农家_嫡":{silver:10}, "贫苦人家_嫡":{silver:3} };
+  return t[s.family+"_"+s.birth] || {silver:10};
+}
+function marryF(s, o){
+  s.spouse = { name:o.name||genName("男"), rel:o.rel||60, persona:o.persona||pick(SPOUSE_PERSONAS) };
+  if(o.type) s.flags.husbandType = o.type;
+  s.flags.marryYM = s.age*12 + s.month;
+  s.pojia = { popo_rel:50, concubines:0 };
+  s.servants = s.servants || [];
+  while(s.servants.length < 2) s.servants.push(genServant("贴身丫鬟"));   // 陪嫁丫鬟
+  const d = dowryOf(s);
+  s.silver += d.silver;
+  if(d.asset) addAsset({...d.asset});
+  if(o.silver) s.silver += o.silver;
+  if(o.fame) s.attrs.fame += o.fame;
+  if(o.mood) s.attrs.mood += o.mood;
+  return `${o.text} 嫁妆足足 ${d.silver} 两${d.asset?"，另有一座陪嫁田庄的契书":""}。次日敬茶，你跪在婆母面前奉上媳妇茶；三朝回门，娘拉着你的手哭了又笑。从今日起，你就是${s.spouse.name}家的人了。（嫁妆+${d.silver} 两${d.asset?"，得资产「陪嫁田庄」":""}${o.note||""}）`;
+}
+function proposalMilestone(age, last){
+  return { id:"tiqin_"+age, age, month:5, cond:s=>s.gender==="女"&&!s.spouse&&!s.flags.unmarried,
+    text:s=>`你${s.age}岁了，及笄已过，正是花期。媒婆前后脚登门，提了几门亲，各有长短。爹娘让你自己拿主意。（名声 ${Math.round(s.attrs.fame)} · 学识 ${Math.round(s.attrs.knowledge)} · ${s.birth}出）`,
+    options:[
+      { text:"侯府嫡子——泼天富贵，也是泼天规矩（需嫡出、名声 55）", cond:s=>s.birth==="嫡"&&s.attrs.fame>=55, effect:s=>marryF(s,{type:"guanhuan", rel:55, fame:8, text:"侯府遣官媒来提亲，三书六礼，风光无两。你嫁的是侯府嫡子，从此朱门深似海。"}) },
+      { text:"官宦嫡子——门当户对（需名声 40）", cond:s=>s.attrs.fame>=40, effect:s=>marryF(s,{type:"guanhuan", rel:60, fame:6, text:"官宦人家的花轿抬你过了门，纳采、纳吉一样不缺。夫婿是家中嫡子，前程可期。"}) },
+      { text:"书生——进士苗子，来年可期（需学识 50）", cond:s=>s.attrs.knowledge>=50, effect:s=>marryF(s,{type:"shusheng", rel:75, mood:4, text:"那书生虽清贫，却写得一手好文章，人人都说他是进士苗子。你读过他的诗，愿意信他。"}) },
+      { text:"富商嫡子——衣食无忧，安稳一生", effect:s=>marryF(s,{type:"fushang", rel:60, silver:60, note:"，聘礼+60 两", text:"聘礼抬了整整十八条杠，你风风光光嫁进了富商之家。"}) },
+      { text:"寒门书生——他有才学，只是眼下清贫", effect:s=>marryF(s,{type:"shusheng", rel:78, mood:6, text:"你嫁给了那个虽清贫却有才学的书生。红烛之下他说：「娘子信我，他日必不负你。」"}) },
+      { text:"青梅竹马的他——两小无猜，情投意合", cond:s=>s.friends.some(f=>f.qingmei), effect:s=>{
+          const f=s.friends.find(x=>x.qingmei);
+          s.friends=s.friends.filter(x=>x!==f);
+          return marryF(s,{name:f.name, persona:f.persona, rel:90, mood:8, text:"你谁也没选，只红着脸说出了他的名字。爹娘是看着你们一起长大的，亲事一说即合。青梅竹马，终成眷属——花轿里你想起小时候同案描红的光景，忍不住笑了。"});
+        } },
+      { text:"回绝——再看看", effect:s=>{ s.attrs.mood-=2; return last ? "你回绝了。娘在背后直掉泪：「姑娘家的花期，眼看就要过去了啊。」（心情-2）" : "你谢过了媒婆。娘叹气：「花期渐逝，下一回，可别再挑了。」（心情-2）"; } },
+    ]};
+}
+MILESTONES.push(
+  proposalMilestone(16, false),
+  proposalMilestone(18, false),
+  proposalMilestone(20, true),
+  { id:"huaqi", age:22, month:5, cond:s=>s.gender==="女"&&!s.spouse, text:s=>`你二十二岁了。从前踏破门槛的媒婆渐渐少了，上门的亲事，档次也大不如前。娘鬓角添了白发，看你的眼神里都是愁。`,
+    options:[
+      { text:"寒门书生——清贫却有才学", effect:s=>marryF(s,{type:"shusheng", rel:78, mood:4, text:"终究是嫁了。夫君虽寒微，待你却是真心。"}) },
+      { text:"富商庶子——家境殷实，只是出身尴尬", effect:s=>marryF(s,{type:"fushang", rel:60, silver:60, note:"，聘礼+60 两", text:"富商家的庶子来提亲，聘礼丰厚。都是庶出，谁也不嫌谁。"}) },
+      { text:"做填房——给丧偶的官人续弦（名声-8，银两+80）", effect:s=>{ s.attrs.fame-=8; return marryF(s,{rel:50, silver:80, note:"，名声-8，银两+80", text:"你做了填房。前头娘子留下一双儿女，怯生生唤你「母亲」，满城的闲话跟着花轿走了一路。"}); } },
+      { text:"不嫁，我一个人过", effect:s=>{ s.attrs.mood-=4; return "你把媒婆都挡了回去。娘哭了半宿，你也一夜无眠。（心情-4）"; } },
+    ]},
+  { id:"qingdeng", age:26, month:5, cond:s=>s.gender==="女"&&!s.spouse, text:s=>`你二十六岁了，花期已过，再无人上门提亲。闺中岁月漫长，往后的路，要自己走了。`,
+    options:[
+      { text:"青灯自守，读书自遣", effect:s=>{ s.flags.unmarried=true; s.attrs.knowledge+=3; s.attrs.mood+=2; return "你收起嫁衣，在窗前设了书案。往后青灯古卷，自守一生——不依附谁，也挺好。（学识+3，心情+2，此生不嫁）"; } },
+      { text:"认命，帮衬娘家度日", effect:s=>{ s.flags.unmarried=true; s.attrs.mood-=6; return "你把自己关在房里三日，出来时眼睛是肿的。从此你帮衬兄嫂管家带孩子，做了一辈子的「老姑娘」。（心情-6，此生不嫁）"; } },
+    ]},
+);
+
+/* ---- 婚后主线（按夫家类型） ---- */
+MILESTONES.push(
+  { id:"fu_shusheng", age:26, month:8, cond:s=>s.gender==="女"&&s.spouse&&s.flags.husbandType==="shusheng", text:s=>`你夫君要赴乡试了。这些年你浆洗缝补、红袖添香，供他安心读书。临行前夜，他握住了你的手。`,
+    options:[
+      { text:"变卖首饰，助他赴考（需 10 两）", cond:s=>s.silver>=10, effect:s=>{
+          s.silver-=10;
+          if(chance(0.55)){ s.flags.fugui=true; s.attrs.fame+=15; s.attrs.mood+=10; return "中了！你夫君高中举人，喜报送到家门时你喜极而泣。多年的清苦没有白熬，你也成了人人敬重的举人娘子。（名声+15，心情+10）"; }
+          s.attrs.mood-=8; return "夫君落第而归，一进门就红了眼眶。你笑着替他掸去肩上尘土：「下次再考，我还供你。」（心情-8）";
+        } },
+      { text:"劝他找个营生，安稳度日", effect:s=>{ s.silver+=8; s.attrs.mood+=3; return "夫君想通了，在县里谋了个书吏的差事。功名虽无望，但一家人和和美美，也是好日子。（银两+8，心情+3）"; } },
+    ]},
+  { id:"fu_fushang", age:30, month:6, cond:s=>s.gender==="女"&&s.spouse&&s.flags.husbandType==="fushang", text:s=>`婆母年事已高，要把中馈大权交给你。几间铺子的账本、上下几十口人——这一家的兴衰，往后要你来掌。`,
+    options:[
+      { text:"接过对牌钥匙，当好这个家", effect:s=>{ s.flags.zhangjia=true; addAsset({name:"掌家铺面", yearly:25, value:100}); s.attrs.fame+=6; s.attrs.mood+=5; return "你治家井井有条，该省的省，该花的花，连老掌柜都服气。三年后，家中的进项比从前还多了两成。（得资产「掌家铺面」，名声+6）"; } },
+      { text:"推辞，安享清闲", effect:s=>{ s.attrs.mood+=3; return "你推了。管家理事千头万绪，你只愿守着自己的小日子，种种花、读读诗。（心情+3）"; } },
+    ]},
+  { id:"fu_guanhuan", age:30, month:6, cond:s=>s.gender==="女"&&s.spouse&&s.flags.husbandType==="guanhuan", text:s=>`你夫君在仕途上步步高升，朝廷诰封下来，你也被封了诰命夫人。从此后宅交际、官场眷属的往来，都要你来打点。`,
+    options:[
+      { text:"谢恩领封", effect:s=>{ s.flags.gaoming=true; s.attrs.fame+=15; s.attrs.mood+=8; return "凤冠霞帔，诰命加身。夫人们的茶会诗社，你应付得游刃有余。夫荣妻贵，古人诚不欺我。（名声+15，心情+8）"; } },
+      { text:"谦辞不受，深居简出", effect:s=>{ s.attrs.fame+=3; s.attrs.mood+=2; return "你上表谦辞，只说妇道人家不敢受此殊荣。这番谦退传出去，人人赞你贤德。你关起门来读书绣花，日子清净自在。（名声+3，心情+2）"; } },
+    ]},
+  { id:"fu_pingfan", age:28, month:6, cond:s=>s.gender==="女"&&s.spouse&&(s.flags.husbandType==="yizhong"||!s.flags.husbandType), text:s=>`成亲数年，日子如溪水般静静流淌。夫君待你一如当初，灶上的汤、檐下的花，都是踏实的幸福。`,
+    options:[
+      { text:"平平淡淡才是真", effect:s=>{ s.attrs.mood+=8; if(s.spouse) s.spouse.rel=Math.min(100,s.spouse.rel+10); return "夜里你与夫君并肩坐在院子里看星星，谁也没说话。有些幸福，不必说。（心情+8，关系+10）"; } },
+      { text:"与夫君赶集置办年货", effect:s=>{ s.silver-=2; s.attrs.mood+=5; if(s.spouse) s.spouse.rel=Math.min(100,s.spouse.rel+5); return "腊月里你与夫君挽着篮子赶集，买年画、称糖果、扯新布。他偷偷给你买了支绢花，你嗔他乱花钱，转身却戴上了。（银两-2，心情+5，关系+5）"; } },
+    ]},
+);
+
+/* ---- 夫死：守节还是改嫁 ---- */
+const FUSI_EVENT = { id:"fusi", text:s=>`天有不测风云——你的夫君染了急症，三日便撒手人寰。灵堂前你一身缟素，往后的路，要自己走了。`,
+  options:[
+    { text:"为夫守节，抚养儿女", effect:s=>{
+        s.flags.fusi=true; S.spouse=null; s.flags.widow=true; s.attrs.mood-=12; s.attrs.fame+=12; s.flags.zhenjie=true;
+        return "你矢志守节，独自把儿女拉扯大。世人敬你贞烈，族中逢年过节都有你一份节礼。只是深夜孤灯，冷暖自知。（心情-12，名声+12，贞节传家）";
+      } },
+    { text:"服丧期满，改嫁他人", effect:s=>{
+        s.flags.fusi=true; S.spouse={name:genName("男"), rel:55, persona:pick(SPOUSE_PERSONAS)}; s.flags.marryYM=s.age*12+s.month; s.attrs.mood+=6; s.attrs.fame-=10;
+        return "你改嫁了。夫家族老大怒，街坊的闲言碎语也免不了。但你只想有个人知冷知热——这有错吗？（心情+6，名声-10）";
+      } },
+    { text:"独自过活，不靠任何人", effect:s=>{ s.flags.fusi=true; S.spouse=null; S.flags.widow=true; s.attrs.mood-=8; s.attrs.health+=2; return "你既不改嫁，也不守那虚名，只把家业和儿女扛在自己肩上。世人怎么说是世人的事。（心情-8）"; } },
+  ]};
+
+/* ---- 婚后主线事件（晨昏定省/立规矩/纳妾/掌家/熬成婆/赠妾/分家） ---- */
+const XINFU_EVENT = { id:"xinfu", text:s=>`嫁进${s.spouse.name}家已有月余。新妇入门，晨昏定省是规矩——天不亮就要起身梳妆，去婆母屋里伺候洗漱。`,
+  options:[
+    { text:"恭谨侍奉，不敢有半分懈怠", effect:s=>{ s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+6); s.attrs.mood-=2; return "你每日寅时就起，伺候婆母洗漱、陪用早饭，样样周全。婆母面上淡淡的，眼里却多了几分满意。只是这起得比鸡早的日子，真熬人。（婆婆关系+6，心情-2）"; } },
+    { text:"慢慢适应，量力而行", effect:s=>{ s.attrs.mood+=2; s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+2); return "你照着娘教的规矩一一学来，虽有些磕绊，倒也应付得下来。日子还长，慢慢来。（婆婆关系+2，心情+2）"; } },
+  ]};
+const LIGUIJU_EVENT = { id:"liguiju", text:s=>`过门一年了，婆母开始正式给你立规矩：晨昏定省的时辰、中馈的账目、待客的礼数，一条条，一丝不苟。满府下人都看着你这个新妇如何应对。`,
+  options:[
+    { text:"站规矩侍奉，以顺为孝", effect:s=>{ s.attrs.health-=2; s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+10); return "你在婆母廊下站了半日规矩，腿酸得打颤也没吭一声。婆母终于点了头：「是个懂事的。」（健康-2，婆婆关系+10）"; } },
+    { text:"在夫君面前示弱求疼惜", effect:s=>{ s.spouse.rel=Math.min(100,s.spouse.rel+5); s.pojia.popo_rel=Math.max(0,s.pojia.popo_rel-3); return "夜里你红着眼眶替夫君揉肩，话里话外都是委屈。夫君心疼你，转头却惹婆母不快：「才进门就学会拿捏我儿子了？」（夫君关系+5，婆婆关系-3）"; } },
+    { text:"以礼周全，滴水不漏（需学识 40）", cond:s=>s.attrs.knowledge>=40, effect:s=>{ s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+5); s.attrs.fame+=3; return "你应对得滴水不漏——规矩守得严，话又说得漂亮，连挑剔的婆母都寻不出错处。下人们私下都说：这位新奶奶，不简单。（婆婆关系+5，名声+3）"; } },
+  ]};
+const NAQIE_EVENT = { id:"naqie", text:s=>`婆母把你叫去，话里话外：你夫君屋里人丁单薄，该添个人了。是为夫君纳妾，还是……？`,
+  options:[
+    { text:"贤良大度，主动为夫君纳妾", effect:s=>{ s.attrs.fame+=8; s.pojia.concubines++; s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+5); return "你亲自相看，为夫君纳了一房妾室。满府上下都赞你贤良，婆母更是满意。只是夜深时，你对着烛火坐了很久。（名声+8，妾室+1，婆婆关系+5）"; } },
+    { text:"善妒阻拦，我屋里不容人", effect:s=>{ s.spouse.rel=Math.min(100,s.spouse.rel+5); s.attrs.fame-=5;
+        if(chance(0.2)){ s.spouse.rel=Math.max(0,s.spouse.rel-10); return "你哭闹着拦下了这事。夫君面上依了你，心里却存了芥蒂，渐渐与你生分了。外头已有闲话，说你善妒。（夫君离心，名声-5）"; }
+        return "你红着眼眶表明心迹：「我屋里，容不得别人。」夫君叹口气，终究依了你。只是「善妒」二字，已悄悄传了出去。（夫君关系+5，名声-5）"; } },
+    { text:"折中——抬个通房丫头", effect:s=>{ s.attrs.fame+=3; s.pojia.concubines++; s.attrs.mood-=3; return "你退了一步，把陪嫁的丫头开了脸抬作通房。既全了贤名，人又捏在自己手里。只是看着昔日的丫头分走夫君，心里终究不是滋味。（名声+3，妾室+1，心情-3）"; } },
+  ]};
+const GUANPAI_EVENT = { id:"guanpai", text:s=>`婆母年事渐高，有意把掌家的对牌账册交出来。这府里几房妯娌，眼睛都盯着那串钥匙呢。（婆婆关系 ${Math.round(s.pojia.popo_rel)}）`,
+  options:[
+    { text:"主动请缨，担起中馈", effect:s=>{
+        const hasDi = s.children.some(c=>c.birth==="嫡" && c.gender==="男");
+        if(s.pojia.popo_rel<40 && chance(0.3)){ s.attrs.mood-=8; delete s.seen.guanpai; addRival(s, "妯娌·"+genName("女"), rnd(45,70), "争夺对牌结怨"); return "你递了话，却被二房妯娌抢了先——人家是嫡长媳，婆母顺水推舟就把对牌给了她。到手的鸭子飞了，你夜里气得没睡着。（心情-8，对牌旁落，妯娌成了你的对头）"; }
+        if(s.pojia.popo_rel>=60 || hasDi){ s.flags.guanjia=true; s.attrs.fame+=5; return "婆母把对牌账册郑重交到你手上：「这个家，往后你来当。」你接了钥匙，也接了满府几十口人的生计。（名声+5，执掌中馈，解锁「管家理账」）"; }
+        s.attrs.mood-=3; delete s.seen.guanpai; return "婆母沉吟半晌：「你再历练历练。」对牌暂且还攥在老人家手里。（心情-3）"; } },
+    { text:"谦辞，继续辅佐婆母", effect:s=>{ s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+3); delete s.seen.guanpai; return "你恭恭敬敬地说：「母亲身子还硬朗，媳妇再多学几年。」婆母听了很是受用。（婆婆关系+3）"; } },
+  ]};
+const AOCHENGPO_EVENT = { id:"aochengpo", text:s=>`儿子娶亲，新妇进门给你敬茶。你坐在上首受了礼——熬了半辈子，如今你也成了婆。`,
+  options:[
+    { text:"宽和待下，做个好婆婆", effect:s=>{ s.attrs.fame+=5; s.attrs.mood+=4; return "你拉着儿媳的手温言嘱咐，免了她三日的站规矩。想起自己当年在婆母跟前的谨小慎微，你决定不让儿媳再吃那份苦。阖府都说老夫人慈和。（名声+5，心情+4）"; } },
+    { text:"立规矩，拿出婆婆的款儿", effect:s=>{ s.attrs.mood+=3; s.attrs.fame-=2; return "新妇晨昏定省、立规矩、伺候汤药，你一样不落都安排上。多年的媳妇熬成婆——这滋味，你品得心安理得。只是外头有人说你严苛。（心情+3，名声-2）"; } },
+  ]};
+const ZENGQIE_EVENT = { id:"zengqie", text:s=>`族中长辈赏下一个俊俏丫头，话里话外是要给你做通房。你妻子${s.spouse.name}在帘后听见了，指甲掐进了掌心。`,
+  options:[
+    { text:"收下，长辈赐不敢辞", effect:s=>{ S.concubines=1; s.spouse.rel=Math.max(0,s.spouse.rel-15); s.attrs.mood+=3; return "你收下了。当夜妻子背对着你睡，肩头微微发抖。后宅从此多了个人，也多了道裂缝。（妾室+1，妻子关系-15，心情+3）"; } },
+    { text:"婉拒，夫妇一体", effect:s=>{ s.spouse.rel=Math.min(100,s.spouse.rel+10); s.attrs.fame+=3; return "你躬身回绝：「家有贤妻，不敢纳二色。」妻子在帘后红了眼眶。这事传出去，人人赞你是难得的专情男子。（妻子关系+10，名声+3）"; } },
+  ]};
+const FENJIA35_EVENT = { id:"fenjia35", text:s=>{
+    const bros=(s.siblings||[]).filter(b=>b.gender==="男");
+    const who = bros.length ? `你与${bros.map(b=>b.name).join("、")}几房齐聚一堂` : `族中兄弟几房齐聚一堂`;
+    return `树大分枝，人大分家。族老主持分家，${who}。祖宗的规矩摆在那儿——嫡庶长幼，各有所得。`;
+  },
+  options:[
+    { text:"听凭族老分派", effect:s=>{
+        const bros=(s.siblings||[]).filter(b=>b.gender==="男");
+        const broName = s.birth==="嫡" ? ((bros.find(b=>b.birth==="庶")||bros[0]||{}).name||"庶出的兄弟")
+                                       : ((bros.find(b=>b.birth==="嫡")||bros[0]||{}).name||"嫡出的兄长");
+        if(s.birth==="嫡"){ s.silver+=100; addAsset({name:"分家祖产", yearly:15, value:120}); s.attrs.mood+=5; return `你是嫡出，祖宅田产分得七成。${broName}只得了些散银铺面，出门时背影落寞。这就是嫡庶之别。（银两+100，得资产「分家祖产」，心情+5）`; }
+        s.silver+=40; s.attrs.mood-=5; return `你是庶出，只分得三成——几间铺面、几十两散银。嫡出的${broName}得了七成祖产，还假惺惺地说「往后有事言语一声」。你攥着地契，指甲掐进掌心。（银两+40，心情-5）`; } },
+  ]};
+
+/* ---- 女子随机事件 ---- */
+RANDOM_EVENTS.push(
+  { id:"gui_shihui", min:14, max:28, once:true, cond:s=>s.gender==="女"&&s.path==="cai", text:s=>`闺中密友邀你结诗社，每月一聚，唱和诗词。`,
+    options:[
+      { text:"欣然入社", effect:s=>{ s.attrs.knowledge+=5; s.attrs.mood+=6; s.friends.push({name:genName("女"), rel:35, persona:pick(FRIEND_PERSONAS)}); return "诗社里你们赏花、分韵、联句，好不快活。你还结识了一位志同道合的挚友。（学识+5，心情+6）"; } },
+      { text:"婉拒，独自研读", effect:s=>{ s.attrs.knowledge+=3; s.attrs.mood-=1; return "你更爱独处的清净。一盏灯、一卷书，自有一番天地。（学识+3，心情-1）"; } },
+    ]},
+  { id:"niangjia", min:20, max:50, once:true, cond:s=>s.gender==="女"&&s.spouse&&(s.parents.father.alive||s.parents.mother.alive), text:s=>`许久没回娘家了。今日你带了些点心回门，娘拉着你的手说了半宿的话。`,
+    options:[
+      { text:"常回家看看", effect:s=>{ s.attrs.mood+=6; if(s.parents.mother.alive) s.parents.mother.health=Math.min(100,s.parents.mother.health+4); return "出嫁的女儿回门，娘做了一桌子你爱吃的菜。临走时她往你包袱里塞了两双亲手做的鞋。（心情+6）"; } },
+      { text:"在娘家多住几日（需 2 两）", cond:s=>s.silver>=2, effect:s=>{ s.silver-=2; s.attrs.mood+=8; return "你托人捎话回夫家，在娘家多住了几日。睡自己出嫁前的床，吃娘做的饭，几日下来，你仿佛又做回了姑娘。（银两-2，心情+8）"; } },
+    ]},
+  { id:"poxi", min:19, max:45, repeatable:true, cond:s=>s.gender==="女"&&s.spouse&&s.flags.husbandType!=="yizhong", text:s=>`婆母对你近日的行止颇有微词，话里话外都是敲打。`,
+    options:[
+      { text:"忍着，以顺为孝", effect:s=>{ s.attrs.mood-=4; s.attrs.fame+=2; return "你低眉顺眼应了。夜里一个人坐着，心里多少有些委屈。但孝媳的名声传了出去。（心情-4，名声+2）"; } },
+      { text:"与夫君倾诉", effect:s=>{ if(s.spouse&&s.spouse.rel>=60){ s.attrs.mood+=3; s.spouse.rel=Math.min(100,s.spouse.rel+3); return "夫君听完叹了口气，转头去与婆母分说。这家里有人向着你，日子就不难挨。（心情+3，关系+3）"; } s.attrs.mood-=6; return "夫君只含糊说了句「母亲年纪大了，你多担待」。你望着帐顶，一夜没睡好。（心情-6）"; } },
+    ]},
+  { id:"xianyan", min:16, max:40, once:true, cond:s=>s.gender==="女"&&s.path==="wu", text:s=>`街上几个长舌妇对你指指点点：「女孩子家舞刀弄枪，将来谁还敢娶。」`,
+    options:[
+      { text:"怼回去", effect:s=>{ s.attrs.mood+=4; s.attrs.fame+=2; return "你把棍子往地上一杵：「我吃你家米了？」几人讪讪散了。痛快！（心情+4，名声+2）"; } },
+      { text:"不理会", effect:s=>{ s.attrs.knowledge+=2; return "你只当没听见。嘴长在别人身上，拳头长在自己身上。（学识+2）"; } },
+    ]},
+  { id:"cainv_jing", min:18, max:35, once:true, cond:s=>s.gender==="女"&&s.path==="cai", text:s=>`一位有名的才女读了你的诗，托人捎来书信，想与你结为文字之交。`,
+    options:[
+      { text:"书信往还，以文会友", effect:s=>{ s.friends.push({name:genName("女"), rel:50, persona:pick(FRIEND_PERSONAS)}); s.attrs.knowledge+=4; s.attrs.mood+=5; return "你们诗词唱和、书信不绝，成了闻名一时的「闺中二雅」。高山流水，知音难觅。（结识挚友，学识+4，心情+5）"; } },
+      { text:"神交即可，不必往来", effect:s=>{ s.attrs.mood+=2; s.attrs.knowledge+=2; return "你回了封短笺道谢。有些知己，不必见面，文字相通足矣。（学识+2，心情+2）"; } },
+    ]},
+  { id:"jiejie_jiazhuang", min:14, max:17, once:true, cond:s=>s.gender==="女"&&!s.spouse&&(s.siblings||[]).some(b=>b.gender==="女"), text:s=>{
+      const sis=(s.siblings||[]).find(b=>b.gender==="女");
+      const cmp = sis.birth==="嫡"&&s.birth==="庶" ? `十里红妆，比你这样庶出的姑娘将来能指望的，厚了不知多少`
+                : sis.birth==="庶"&&s.birth==="嫡" ? `到底是庶出，嫁妆薄得很，比你将来的排场差远了`
+                : `与你将来的份例大抵相当`;
+      s.flags._sisjia = sis.name;
+      return `你${s.age}岁了。姐姐${sis.name}（${sis.birth}出）出阁的日子定了，嫁妆单子送到各房过目——${cmp}。你捏着那张单子，心里翻腾。`;
+    },
+    options:[
+      { text:"真心替她高兴", effect:s=>{
+          const sis=(s.siblings||[]).find(b=>b.name===s.flags._sisjia);
+          s.attrs.mood+=3; if(sis) sis.closeness=Math.min(100,sis.closeness+5);
+          return `你拉着姐姐的手，替她清点嫁妆、试嫁衣，比自己的事还上心。姐姐红了眼眶，临上轿前塞给你一支她最爱的簪子。姐妹一场，一荣俱荣。（心情+3，${s.flags._sisjia}亲近+5）`;
+        } },
+      { text:"心里泛酸", effect:s=>{ s.xinji=(s.xinji||15)+5; s.attrs.mood-=2; return "你笑着道贺，指甲却掐进了掌心。凭什么？夜里你对着那张嫁妆单子翻来覆去——这宅门里的不公，你算是刻进心里了。（心机+5，心情-2）"; } },
+      { text:"找母亲理论", effect:s=>{ s.favor=Math.max(0,(s.favor||50)-5); s.attrs.mood+=1; return "你跑去跟嫡母理论，话说得直白。嫡母拨着茶盖，半晌才道：「你倒是敢说。」理是没辩赢，但那口闷气，好歹出了。（庇护-5，心情+1）"; } },
+    ]},
+  /* ---- 宅斗：已婚女 ---- */
+  { id:"yueli", min:18, max:60, repeatable:true, cond:s=>s.gender==="女"&&s.spouse, text:s=>`你发觉这个月的月例银子被管事克扣了一截，下人们阳奉阴违，都当你是好欺负的。`,
+    options:[
+      { text:"查账严惩，杀鸡儆猴（需学识 35）", cond:s=>s.attrs.knowledge>=35, effect:s=>{ s.attrs.fame+=5; s.silver+=5; if(s.pojia) s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+3); return "你连夜对账，一笔一笔指出亏空，管事扑通跪下。你赏罚分明，既追回银子又立了威，满府下人再不敢小看你。（名声+5，追回银两+5，婆婆关系+3）"; } },
+      { text:"宽和放过，得饶人处且饶人", effect:s=>{ s.attrs.mood-=2; return "你想着多一事不如少一事，轻轻放下了。谁知下人们得寸进尺——这后宅里，心软是要吃亏的。（心情-2）"; } },
+    ]},
+  { id:"shouyan", min:25, max:60, once:true, cond:s=>s.gender==="女"&&s.spouse&&s.pojia, text:s=>`婆母六十大寿将至，府里商议怎么办寿宴。办得寒酸了，丢的是全府的脸面。`,
+    options:[
+      { text:"出 20 两，风风光光大办（需 20 两）", cond:s=>s.silver>=20, effect:s=>{ s.silver-=20; s.pojia.popo_rel=Math.min(100,s.pojia.popo_rel+10); s.attrs.fame+=5; return "寿宴那日宾客满堂，戏台唱到月上中天。婆母拉着你的手对亲眷们说：「我这媳妇，比亲闺女还贴心。」（银两-20，婆婆关系+10，名声+5）"; } },
+      { text:"随份子即可，不必铺张", effect:s=>{ s.silver-=3; s.pojia.popo_rel=Math.max(0,s.pojia.popo_rel-3); return "你只随了三两银子的份子。寿宴办得平平，婆母面上不显，回头却跟妯娌念叨：「到底是隔层肚皮。」（银两-3，婆婆关系-3）"; } },
+    ]},
+  { id:"zhoudi", min:18, max:50, repeatable:true, cond:s=>s.gender==="女"&&s.spouse, text:s=>`妯娌新得了支赤金簪子，特意戴着在你面前晃了三圈，话里话外都是炫耀。`,
+    options:[
+      { text:"不卑不亢，淡然处之", effect:s=>{ s.attrs.fame+=2; s.attrs.mood+=1; return "你只含笑夸了句「嫂嫂好福气」，便转身忙自己的去了。不攀不比，反倒显得你气度不凡。（名声+2，心情+1）"; } },
+      { text:"针锋相对，绝不能输", effect:s=>{ s.attrs.mood+=3; s.attrs.fame-=2; return "你次日就戴上陪嫁的点翠头面，把她比了下去。痛快是痛快，只是两房的梁子，又深了一层。（心情+3，名声-2）"; } },
+    ]},
+  { id:"jieyin", min:18, max:55, repeatable:true, cond:s=>s.gender==="女"&&s.spouse, text:s=>`婆家一位远房亲戚上门，说有急用，想借你的嫁妆银子周转 15 两。`,
+    options:[
+      { text:"借，亲戚一场", effect:s=>{
+          if(chance(0.3)){ s.silver-=15; s.attrs.mood-=3; return "银子借出去就如泥牛入海，再提起来对方就哭穷。嫁妆是女人的体己，你算是懂了。（银两-15，心情-3）"; }
+          s.silver-=15; s.attrs.fame+=2; return "对方千恩万谢地去了，半年后如数奉还，还送了一篮子土产。你在婆家落了个大方的好名声。（名声+2）"; } },
+      { text:"婉拒，嫁妆动不得", effect:s=>{ s.attrs.fame-=3; s.attrs.mood+=2; return "你赔着笑婉拒了。对方悻悻而去，背后说你小气。可体己钱是女儿家的底气，你不后悔。（名声-3，心情+2）"; } },
+    ]},
+  { id:"jueshe", min:25, max:55, repeatable:true, cond:s=>s.gender==="女"&&s.spouse&&s.pojia&&s.pojia.concubines>0, text:s=>`妾室在夫君面前嚼舌根，说你管家严苛、苛待下人。夫君听了，看你时眼神淡了几分。`,
+    options:[
+      { text:"敲打立威，正室自有正室的规矩", effect:s=>{ s.attrs.fame+=3; s.attrs.mood+=2; addRival(s, "妾室·"+pick(YAHUAN_NAMES), rnd(35,60), "嚼舌根被揭穿，怀恨在心"); return "你当着满府下人的面，不软不硬敲打了那妾室一番，又把她的话一条条驳回去。妾室敛衽认错，再不敢造次。（名声+3，心情+2）"; } },
+      { text:"将计就计，反将她一军（需心机 50）", cond:s=>s.xinji>=50, effect:s=>{ s.attrs.fame+=5; s.xinji=(s.xinji||15)+2; addRival(s, "妾室·"+pick(YAHUAN_NAMES), rnd(35,60), "嚼舌根被揭穿，怀恨在心"); return "你不辩不恼，反倒连日对那妾室嘘寒问暖、赏赐有加。她渐渐放松了警惕，言语愈发张狂——直到那日当着夫君和婆母的面，她自己说漏了嘴。你这才慢条斯理把她往日的编排一条条摆上桌面。欲擒故纵，一击即中。婆母叹道：「这才是正室的手段。」（名声+5，心机+2）"; } },
+      { text:"隐忍，不与她一般见识", effect:s=>{ s.attrs.mood-=5; return "你咽下了这口气。可后宅里，退让换不来安宁——那妾室愈发得意了。（心情-5）"; } },
+    ]},
+  { id:"qie_chong", min:25, max:60, repeatable:true, cond:s=>s.gender==="女"&&s.spouse&&s.pojia&&s.pojia.concubines>0, text:s=>`妾室近来风头正盛，夫君一连半月宿在她屋里。下人们的风向，悄悄变了。`,
+    options:[
+      { text:"稳坐正室，不动声色", effect:s=>{ s.attrs.fame+=2; s.attrs.mood-=2; return "你该吃吃该睡睡，中馈钥匙攥得紧紧的。宠妾再得宠，也越不过嫡妻去。（名声+2，心情-2）"; } },
+      { text:"挽回夫君的心", effect:s=>{ s.spouse.rel=Math.min(100,s.spouse.rel+8); s.attrs.mood+=2; return "你亲手做了夫君爱吃的菜，灯下与他忆起新婚时的光景。夫君愧疚，此后常来你屋里。（夫君关系+8，心情+2）"; } },
+    ]},
+  { id:"qie_yun", min:25, max:60, repeatable:true, cond:s=>s.gender==="女"&&s.spouse&&s.pojia&&s.pojia.concubines>0, text:s=>`妾室有孕了。府里上下都在看你的反应。`,
+    options:[
+      { text:"照章赏赐，正室的气度不能输", effect:s=>{
+          const hasDi = s.children.some(c=>c.birth==="嫡"&&c.gender==="男");
+          if(hasDi){ s.attrs.mood+=2; s.attrs.fame+=2; return "你有嫡子傍身，地位稳如泰山，索性大方赏了妾室补品。阖府都赞你贤良大度。（心情+2，名声+2）"; }
+          s.attrs.mood-=8; return "你膝下无子，妾室却先有了孕。你夜里翻来覆去：若她生下长子……这后宅的天，怕是要变了。（心情-8）"; } },
+    ]},
+  /* ---- 宅斗：已婚男 ---- */
+  { id:"poxi_m", min:25, max:55, repeatable:true, cond:s=>s.gender==="男"&&s.spouse&&s.parents.mother.alive, text:s=>`你妻子${s.spouse.name}与你母亲又拌了嘴，婆媳俩一个在东屋抹泪，一个在西屋叹气。你夹在中间。`,
+    options:[
+      { text:"两边安抚，做和事佬", effect:s=>{ s.attrs.mood-=3; s.spouse.rel=Math.min(100,s.spouse.rel+3); return "你先给母亲捶背陪罪，又给妻子买了她爱的点心。两头受气，两头陪笑——男人不容易。（心情-3，妻子关系+3）"; } },
+      { text:"装聋作哑，躲出去喝酒", effect:s=>{ s.spouse.rel=Math.max(0,s.spouse.rel-5); s.attrs.mood+=2; return "你躲去酒馆喝了半日。回家时战火已歇，只是妻子看你的眼神，凉了几分。（妻子关系-5，心情+2）"; } },
+    ]},
+  { id:"zhengwu", min:35, max:60, repeatable:true, cond:s=>s.gender==="男"&&s.children.some(c=>c.birth==="庶"&&!c.grown), text:s=>`嫡出的儿子和庶出的儿子为一方端砚打了起来，小的那个哭得撕心裂肺，姨娘抱着孩子跪在你面前。`,
+    options:[
+      { text:"秉公处理，嫡庶一视同仁", effect:s=>{ s.attrs.fame+=3; return "你问明缘由，不偏不倚，各罚了抄书十遍。姨娘虽不服，族中长辈却赞你治家有方。（名声+3）"; } },
+      { text:"偏袒嫡子，嫡庶有别", effect:s=>{ const c=s.children.find(x=>x.birth==="庶"); if(c) c.closeness=Math.max(0,c.closeness-10); return "你把端砚给了嫡子，呵斥庶子「嫡庶有别，不可僭越」。庶子的眼睛暗了下去，姨娘咬着唇没敢出声。（庶子亲近-10）"; } },
+    ]},
+  { id:"qiqie", min:25, max:60, repeatable:true, cond:s=>s.gender==="男"&&s.spouse&&(s.concubines||0)>0, text:s=>`妾室与你妻子${s.spouse.name}为一件衣裳争了起来，双双闹到你面前。`,
+    options:[
+      { text:"偏向妻子，正室为大", effect:s=>{ s.attrs.fame+=2; s.spouse.rel=Math.min(100,s.spouse.rel+3); return "你当着众人把衣裳断给了妻子。妾室哭着回了自己的院子，妻子扬眉吐气。妻为嫡，这是规矩。（名声+2，妻子关系+3）"; } },
+      { text:"偏向妾室，她正得宠", effect:s=>{ s.spouse.rel=Math.max(0,s.spouse.rel-10); s.attrs.fame-=3; return "你护着妾室，妻子当众下不来台，回屋摔了妆奁。宠妾灭妻的苗头，外头已有闲话了。（妻子关系-10，名声-3）"; } },
+      { text:"各打五十大板", effect:s=>{ s.attrs.mood-=2; return "你两头各训一顿，谁都不得罪，谁也没哄好。后宅不宁，最累的是你。（心情-2）"; } },
+    ]},
+);
+
+/* ---- 下人与对头事件 ---- */
+RANDOM_EVENTS.push(
+  { id:"diaonu", min:10, max:80, repeatable:true, cond:s=>(s.servants||[]).some(v=>v.loyalty<40), text:s=>{
+      const v=(s.servants||[]).reduce((a,b)=>a.loyalty<=b.loyalty?a:b);
+      return `你发觉这个月的月例银子对不上数——是${v.role}${v.name}在采买里夹带私藏。下人们看在眼里，都等着看你如何处置。`;
+    },
+    options:[
+      { text:"发卖立威，以儆效尤", effect:s=>{
+          const v=(s.servants||[]).reduce((a,b)=>a.loyalty<=b.loyalty?a:b);
+          s.servants=s.servants.filter(x=>x!==v); s.attrs.fame+=2;
+          return `你当着满院下人的面发落了${v.name}，人牙子当天就把人领走了。从此再没人敢在你的份例上动手脚。（名声+2，${v.name}已发卖）`; } },
+      { text:"只敲打一番，下不为例", effect:s=>{
+          const v=(s.servants||[]).reduce((a,b)=>a.loyalty<=b.loyalty?a:b);
+          v.loyalty=Math.min(100,v.loyalty+10); s.silver-=4; s.attrs.mood-=2;
+          return `你念着主仆一场，只罚了${v.name}三个月月钱。TA 千恩万谢，收敛了不少。只是被克扣的银子，终究没追回来。（银两-4，${v.name}忠心+10）`; } },
+    ]},
+  { id:"zhongpu", min:10, max:80, once:true, cond:s=>(s.servants||[]).some(v=>v.loyalty>80), text:s=>{
+      const v=(s.servants||[]).find(x=>x.loyalty>80);
+      s.flags._zhongpu=v.name;
+      return `夜里，${v.role}${v.name}悄悄来报：有人在你常用的香料里动了手脚，还买通了小厨房的妈妈。你惊出一身冷汗。`;
+    },
+    options:[
+      { text:"顺藤摸瓜，当场拿人", effect:s=>{ s.attrs.fame+=3; s.attrs.mood+=3; return `你按${s.flags._zhongpu}给的线索连夜查访，人赃并获。算计你的人偷鸡不成蚀把米，灰溜溜收了手。养仆千日，用在一时。（名声+3，心情+3）`; } },
+      { text:"不动声色，暗中提防", effect:s=>{ s.xinji=(s.xinji||15)+4; s.attrs.mood+=2; return `你谢过${s.flags._zhongpu}，只作不知，暗中把入口的物件都换了人经手。这宅门里，多一个忠心的耳目，就多一分安稳。（心机+4，心情+2）`; } },
+    ]},
+  { id:"qingsuan", min:16, max:80, repeatable:true, cond:s=>(s.rivals||[]).some(r=>s.attrs.fame>=r.power+20), text:s=>{
+      const r=(s.rivals||[]).find(x=>s.attrs.fame>=x.power+20);
+      s.flags._qingsuan=r.name;
+      return `这些年你隐忍经营，如今名声地位都已今非昔比。回首看，当年与你结怨的${r.name}（${r.grievance}），如今已不是你的对手。时机已到。`;
+    },
+    options:[
+      { text:"新账旧账，一并清算", effect:s=>{
+          const r=(s.rivals||[]).find(x=>x.name===s.flags._qingsuan);
+          s.rivals=s.rivals.filter(x=>x!==r); s.attrs.fame+=10; s.attrs.mood+=8;
+          return `你抓住${r?r.name:"对方"}的错处，当着众人的面一条条摆出来，叫 TA 再抬不起头。多年的闷气一朝散尽，真是痛快！（名声+10，心情+8，对头已除）`; } },
+      { text:"得饶人处且饶人", effect:s=>{ s.attrs.fame+=2; s.attrs.mood+=2; return `你最终摆摆手，放过了${s.flags._qingsuan}。这事传出去，人人赞你度量宽宏。冤家宜解不宜结。（名声+2，心情+2）`; } },
+    ]},
+);
+
+titleScreen();
+</script>
+</body>
+</html>
